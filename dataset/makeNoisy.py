@@ -4,6 +4,7 @@
 
 import csv
 import os
+import random
 
 #파일 위치
 file_location = 'C:/Users/kimhyeji/Desktop/현대문어_원시_말뭉치'
@@ -19,9 +20,9 @@ JONGSUNG = [' ', 'ㄱ', 'ㄲ', 'ㄳ', 'ㄴ', 'ㄵ', 'ㄶ', 'ㄷ', 'ㄹ', 'ㄺ', 
 
 KEYBOARD = {}
 
-#각 자판 주위의 자음들을 저장한다.
-def keyboard_order_jaum():
-    #쌍자음을 이루는 자음들
+#각 자판 주위의 자모음들을 저장한다.
+def keyboard_order():
+    #쌍자모음을 이루는 자모음들
     K_double = [{'ㄲ': ['ㄱ']}, {'ㄸ': ['ㄷ']}, {'ㅃ': ['ㅂ']}, {'ㅆ': ['ㅅ']}, {'ㅉ': ['ㅈ']},
                 {'ㄳ': ['ㄱ', 'ㅅ']}, {'ㄵ': ['ㄴ', 'ㅈ']}, {'ㄶ': ['ㄴ', 'ㅎ']}, {'ㄺ': ['ㄹ', 'ㄱ']}, {'ㄻ': ['ㄹ', 'ㅁ']},
                 {'ㄼ': ['ㄹ', 'ㅂ']}, {'ㄽ': ['ㄹ', 'ㅅ']}, {'ㄿ': ['ㄹ', 'ㅍ']}, {'ㅄ': ['ㅂ', 'ㅅ']},
@@ -32,8 +33,6 @@ def keyboard_order_jaum():
     K = ['ㅂ','ㅈ','ㄷ','ㄱ','ㅅ','ㅛ','ㅕ','ㅑ','ㅐ',
          'ㅁ','ㄴ','ㅇ','ㄹ','ㅎ','ㅗ','ㅓ','ㅏ','ㅣ',
          'ㅋ','ㅌ','ㅊ','ㅍ','ㅠ','ㅜ','ㅡ']
-
-
     K_len = len(K)
 
     # ㅂ : 0, ㅈ : 1 ... 인덱싱 사전
@@ -61,31 +60,70 @@ def keyboard_order_jaum():
 
     #쌍모음, 쌍자음
     for c in K_double:
+        #쌍자모음
         key = list(c.keys())[0]
+
         KEYBOARD[key] = []
+
+        #쌍자모음의 분해
         values = list(c.values())
-        for v in values[0]:
-            KEYBOARD[key] += KEYBOARD[v]
+
+        if(len(values[0]) == 2 or c in ['ㄲ','ㄸ','ㅃ','ㅆ','ㅉ']):
+            KEYBOARD[key] += [[i , values[0][1]] for i in KEYBOARD[values[0][0]]]
+            KEYBOARD[key] += [[values[0][0], i ] for i in KEYBOARD[values[0][0]]]
+
+        else:
+            KEYBOARD[key] += [KEYBOARD[values[0][0]]]
+
 
 #10개의 오타를 제작한다.
-#총 글자/10 각 글자마다 동일한 갯수의 오타 제작
+#10/총 글자수 각 글자마다 동일한 갯수의 오타 제작
 #초성,중성,종성 및 각 글자는 랜덤으로 선택한다.
 def make_noisy(w):
     char = list(w)
+    word_split = []
+
     for c in char:
-        word_split = []
         char_code = ord(c) - UNICODE_N
+        #초성 분리
         chosung = int(char_code / CHOSUNG_N)
         word_split.append(CHOSUNG[chosung])
+
+        #종성 분리
         jungsung =  int((char_code - (CHOSUNG_N * chosung)) / JUNGSUNG_N)
         word_split.append(JUNGSUNG[jungsung])
+
+        #종성 분리
         jongsung = int((char_code - (CHOSUNG_N * chosung) - (JUNGSUNG_N * jungsung)))
-        word_split.append(JONGSUNG[jongsung])
-        print("".join(word_split))
+        #종성이 없는 경우는 더해주지 않는다.
+        if(JONGSUNG[jongsung] != ' '):
+            word_split.append(JONGSUNG[jongsung])
+
+    #분해한 문자의 길이
+    word_len = len(word_split)
+
+    #10번 반복하면서 교체 삭제 추가한다.
+    for i in range(10):
+        error_word = []
+        n = random.randrange(0,word_len)
+        while(word_split[n] == ' '):
+            n = random.randrange(0, word_len)
+
+        near_key = random.choice(KEYBOARD[word_split[n]])
+        #교체
+        if (i % 3 == 0):
+            error_word = word_split[0:n] + list(near_key) + word_split[n+1:]
+        #삭제
+        elif (i % 3 == 1):
+            error_word = word_split[0:n] + word_split[n+1:]
+        #추가
+        else:
+            error_word = word_split[0:n+1] + list(near_key) + word_split[n+1:]
+        print(error_word)
     return word_split
 
-"""
-
+keyboard_order()
+print(KEYBOARD)
 with open('dic.csv', 'r') as rf, open('dic_modify','w',newline = "\n") as wf:
     r = csv.reader(rf)
     w = csv.writer(wf)
@@ -96,7 +134,9 @@ with open('dic.csv', 'r') as rf, open('dic_modify','w',newline = "\n") as wf:
         word = row[0]
         make_noisy(word)
 
-"""
-
-keyboard_order_jaum()
-print(KEYBOARD)
+#분해된 자모음을 글자로 합친다
+#['ㄱ','ㅏ'] -> '가'
+def combine_word(list_char):
+    #for c in len(list_char):
+     #   if(list_char[c])
+     print(1)
