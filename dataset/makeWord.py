@@ -5,7 +5,7 @@
 #키보드 오토마타를 제작한 후, 코드로 작성하였다.
 
 MOUM = ['ㅏ', 'ㅐ', 'ㅑ', 'ㅒ', 'ㅓ', 'ㅔ', 'ㅕ', 'ㅖ', 'ㅗ', 'ㅘ', 'ㅙ', 'ㅚ', 'ㅛ', 'ㅜ', 'ㅝ', 'ㅞ', 'ㅟ', 'ㅠ', 'ㅡ', 'ㅢ', 'ㅣ']
-JAUM = ['ㄱ', 'ㄲ', 'ㄳ', 'ㄴ', 'ㄵ', 'ㄶ', 'ㄷ', 'ㄹ', 'ㄺ', 'ㄻ', 'ㄼ', 'ㄽ', 'ㄾ', 'ㄿ', 'ㅀ', 'ㅁ', 'ㅂ', 'ㅄ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ']
+JAUM = ['ㄱ', 'ㄲ', 'ㄳ', 'ㄴ', 'ㄵ', 'ㄶ', 'ㄷ','ㄸ','ㄹ', 'ㄺ', 'ㄻ', 'ㄼ', 'ㄽ', 'ㄾ', 'ㄿ', 'ㅀ', 'ㅁ', 'ㅂ','ㅃ','ㅄ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ','ㅉ','ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ']
 
 #키보드에서 두번을 눌러야 제작할 수 있는 겹자음을
 #이 문서에서는 키보드겹자음이라고 칭한다
@@ -23,7 +23,15 @@ double_m_list = [['ㅗ', 'ㅏ'], ['ㅗ', 'ㅐ'], ['ㅗ', 'ㅣ'], ['ㅜ', 'ㅓ'],
 K_double_j = {double_j[i] : double_j_list[i] for i in range(len(double_j))}
 K_double_m = {double_m[i] : double_m_list[i] for i in range(len(double_m))}
 
-class makeWord:
+
+#한글 음소 분할을 위한 변수 설정
+UNICODE_N, CHOSUNG_N, JUNGSUNG_N = 44032, 588, 28
+CHOSUNG = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅉ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ']
+JUNGSUNG = ['ㅏ', 'ㅐ', 'ㅑ', 'ㅒ', 'ㅓ', 'ㅔ', 'ㅕ', 'ㅖ', 'ㅗ', 'ㅘ', 'ㅙ', 'ㅚ', 'ㅛ', 'ㅜ', 'ㅝ', 'ㅞ', 'ㅟ', 'ㅠ', 'ㅡ', 'ㅢ', 'ㅣ']
+JONGSUNG = [' ', 'ㄱ', 'ㄲ', 'ㄳ', 'ㄴ', 'ㄵ', 'ㄶ', 'ㄷ', 'ㄹ', 'ㄺ', 'ㄻ', 'ㄼ', 'ㄽ', 'ㄾ', 'ㄿ', 'ㅀ', 'ㅁ', 'ㅂ', 'ㅄ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ']
+
+
+class make_word:
     def __init__(self,w):
         #분해되어 있는 자모들
         self.word = w
@@ -40,6 +48,7 @@ class makeWord:
         char = self.word[self.w_ptr]
         if (char in K_double_m.keys()):
             self.combine(self.w_ptr)
+            return
 
         self.w_ptr += 1
         if(self.w_ptr >= len(self.word)):
@@ -61,7 +70,7 @@ class makeWord:
             # 겹모음 합체
             if char_dic in K_double_m.values():
                 # 겹모음 합체
-                self.word[self.w_ptr - 2:self.w_ptr] = double_m[double_m_list.index[char_dic]]
+                self.word[self.w_ptr - 2:self.w_ptr] = double_m[double_m_list.index(char_dic)]
                 self.combine(self.w_ptr)
                 return
 
@@ -72,12 +81,12 @@ class makeWord:
                 self.start_m()
 
     def chosung(self):
-        #입력된 자음이 키보드겹자음인 경우
         char = self.word[self.w_ptr]
 
         if(self.w_ptr+1 >= len(self.word)):
             return
 
+        #입력된 자음이 키보드겹자음인 경우
         if(char in K_double_j.keys()):
             self.w_ptr += 1
             char = self.word[self.w_ptr]
@@ -91,7 +100,8 @@ class makeWord:
             #'ㄳ' -> 'ㄱ','ㅅ' 로 분해시킨다.
             # 자음 하나를 뺀 이전값 문자 완성
             else:
-                self.word[self.w_ptr-1:self.w_ptr] = K_double_j[char]
+                self.word[self.w_ptr-1:self.w_ptr] = K_double_j[self.word[self.w_ptr-1]]
+                self.w_ptr += 1
                 self.combine(self.w_ptr-2)
                 self.jungsung()
 
@@ -113,8 +123,28 @@ class makeWord:
             return
 
         char = self.word[self.w_ptr]
+
+        # 다음 입력이 키보드겹자음인 경우
+        if (char in K_double_j.keys()):
+            self.w_ptr += 1
+            char = self.word[self.w_ptr]
+
+            # 다음 입력이 자음인 경우 -> 초성 state
+            # 이전값 문자 완성
+            if char in JAUM:
+                self.combine(self.w_ptr - 1)
+                self.chosung()
+            # 다음 입력이 모음인 경우 -> 중성 state
+            # 'ㄳ' -> 'ㄱ','ㅅ' 로 분해시킨다.
+            # 자음 하나를 뺀 이전값 문자 완성
+            else:
+                self.word[self.w_ptr - 1:self.w_ptr] = K_double_j[self.word[self.w_ptr - 1]]
+                self.w_ptr += 1
+                self.combine(self.w_ptr - 2)
+                self.jungsung()
+
         # 다음 입력이 자음인 경우 -> 종성 state
-        if char in JAUM:
+        elif char in JAUM:
             self.jongsung()
 
         # 다음 입력이 모음인 경우 -> 겹모음 state
@@ -147,21 +177,21 @@ class makeWord:
             self.jungsung()
 
     def is_double_j(self):
-        if(self.w_ptr+1 >= len(self.word)):
-            return
-
         #이전 자음과, 현재 자음의 조합
         char_dic = [self.word[self.w_ptr-1],self.word[self.w_ptr]]
         #겹자음이 맞는 경우
         if char_dic in K_double_j.values():
             self.w_ptr += 1
+            if (self.w_ptr >= len(self.word)):
+                return
             # 다음 입력이 자음인 경우 -> 초성 state
             # 겹자음으로 합체 후 이전값 문자 완성
             char = self.word[self.w_ptr]
             if char in JAUM:
                 #겹자음 합체
-                self.word[self.w_ptr-2:self.w_ptr] = double_j[double_j_list.index[char_dic]]
-                self.combine(self.w_ptr-1)
+                self.word[self.w_ptr-2:self.w_ptr] = double_j[double_j_list.index(char_dic)]
+                self.combine(self.w_ptr-2)
+                self.w_ptr -= 1
                 self.chosung()
 
             # 다음 입력이 모음인 경우 -> 중성 state
@@ -177,16 +207,14 @@ class makeWord:
             self.chosung()
 
     def is_double_m(self):
-        if(self.w_ptr+1 >= len(self.word)):
-            return
-
         #이전 모음과, 현재 모음의 조합
         char_dic = [self.word[self.w_ptr-1],self.word[self.w_ptr]]
         # 겹모음이 맞는 경우 -> 중성 state
         # 겹모음 합체
         if char_dic in K_double_m.values():
             # 겹모음 합체
-            self.word[self.w_ptr - 2:self.w_ptr] = double_m[double_m_list.index[char_dic]]
+            self.word[self.w_ptr - 2:self.w_ptr] = double_m[double_m_list.index(char_dic)]
+            self.w_ptr -= 1
             self.jungsung()
 
         #겹모음이 아닌 경우 -> 처음모음 state
@@ -198,12 +226,26 @@ class makeWord:
 
     #r_ptr 부터 f_ptr까지 통합한다.
     def combine(self,f_ptr):
-        print(self.word[self.r_ptr:f_ptr + 1])
+
+        comb_list = self.word[self.r_ptr:f_ptr + 1]
+        if(len(comb_list) == 3 and comb_list[0] in CHOSUNG):
+            cho = CHOSUNG.index(comb_list[0])
+            jung = JUNGSUNG.index(comb_list[1])
+            jong = JONGSUNG.index(comb_list[2])
+            self.result += chr(UNICODE_N + ( cho * CHOSUNG_N ) + ( jung * JUNGSUNG_N ) + jong)
+        elif(len(comb_list) == 2 and comb_list[0] in CHOSUNG and comb_list[1] in JUNGSUNG):
+            cho = CHOSUNG.index(comb_list[0])
+            jung = JUNGSUNG.index(comb_list[1])
+            jong = 0
+            self.result += chr(UNICODE_N + ( cho * CHOSUNG_N ) + ( jung * JUNGSUNG_N ) + jong)
+        else:
+            for i in comb_list:
+                self.result += i
+
         self.r_ptr = f_ptr + 1
 
     def __main__(self):
         self.w_ptr += 1
-
         #검사가 완료될 때 까지 반복한다.
         while(self.w_ptr < len(self.word)):
 
@@ -219,6 +261,8 @@ class makeWord:
         if(self.r_ptr <= len(self.word)):
             self.combine(self.w_ptr)
 
-
-m = makeWord(['ㄱ','ㅣ','ㄴ','ㄷ'])
+"""
+m = make_word(['ㅇ','ㅓ','ㅄ','ㅏ','ㅣ'])
 m.__main__()
+print(m.result)
+"""

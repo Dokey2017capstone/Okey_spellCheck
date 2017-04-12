@@ -1,7 +1,7 @@
 #키보드 오타를 삽입, 교체, 삭제의 형식으로 자동 생성한다
 #오타 삽입과 교체 기준은 키보드의 위치이다.
 #각 자판의 주변 위치를 list에 저장하고, random 하게 교체 혹은 삽입한다.
-
+import makeWord as m
 import csv
 import os
 import random
@@ -18,17 +18,21 @@ CHOSUNG = ['ㄱ', 'ㄲ', 'ㄴ', 'ㄷ', 'ㄸ', 'ㄹ', 'ㅁ', 'ㅂ', 'ㅃ', 'ㅅ',
 JUNGSUNG = ['ㅏ', 'ㅐ', 'ㅑ', 'ㅒ', 'ㅓ', 'ㅔ', 'ㅕ', 'ㅖ', 'ㅗ', 'ㅘ', 'ㅙ', 'ㅚ', 'ㅛ', 'ㅜ', 'ㅝ', 'ㅞ', 'ㅟ', 'ㅠ', 'ㅡ', 'ㅢ', 'ㅣ']
 JONGSUNG = [' ', 'ㄱ', 'ㄲ', 'ㄳ', 'ㄴ', 'ㄵ', 'ㄶ', 'ㄷ', 'ㄹ', 'ㄺ', 'ㄻ', 'ㄼ', 'ㄽ', 'ㄾ', 'ㄿ', 'ㅀ', 'ㅁ', 'ㅂ', 'ㅄ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ', 'ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ']
 
+#각 자판 주위의 자모음들을 저장하는 사전
 KEYBOARD = {}
 
 #각 자판 주위의 자모음들을 저장한다.
 def keyboard_order():
-    #쌍자모음을 이루는 자모음들
-    K_double = [{'ㄲ': ['ㄱ']}, {'ㄸ': ['ㄷ']}, {'ㅃ': ['ㅂ']}, {'ㅆ': ['ㅅ']}, {'ㅉ': ['ㅈ']},
-                {'ㄳ': ['ㄱ', 'ㅅ']}, {'ㄵ': ['ㄴ', 'ㅈ']}, {'ㄶ': ['ㄴ', 'ㅎ']}, {'ㄺ': ['ㄹ', 'ㄱ']}, {'ㄻ': ['ㄹ', 'ㅁ']},
+    #겹자모음을 이루는 자모음들
+    K_double = [{'ㄳ': ['ㄱ', 'ㅅ']}, {'ㄵ': ['ㄴ', 'ㅈ']}, {'ㄶ': ['ㄴ', 'ㅎ']}, {'ㄺ': ['ㄹ', 'ㄱ']}, {'ㄻ': ['ㄹ', 'ㅁ']},
                 {'ㄼ': ['ㄹ', 'ㅂ']}, {'ㄽ': ['ㄹ', 'ㅅ']}, {'ㄿ': ['ㄹ', 'ㅍ']}, {'ㅄ': ['ㅂ', 'ㅅ']},
-                {'ㅒ': ['ㅐ']}, {'ㅖ': ['ㅔ']},
                 {'ㅘ': ['ㅗ', 'ㅏ']}, {'ㅙ': ['ㅗ', 'ㅐ']}, {'ㅚ': ['ㅗ', 'ㅣ']}, {'ㅝ': ['ㅜ', 'ㅓ']}, {'ㅞ': ['ㅜ', 'ㅔ']},
                 {'ㅟ': ['ㅜ', 'ㅣ']}, {'ㅢ': ['ㅡ', 'ㅣ']}]
+
+    #한번의 클릭으로 겹자모음을 이루는 경우에는 오타가 날 수 있는 경우를 다 적어주었다.
+    K_double_one = [{'ㄲ': ['ㄸ', 'ㅆ', 'ㄹ']}, {'ㄸ': ['ㄲ', 'ㅉ', 'ㅇ']}, {'ㅃ': ['ㅉ', 'ㅁ', 'ㄴ']}, {'ㅆ': ['ㄲ', 'ㅛ', 'ㅎ']},
+                {'ㅉ': ['ㅃ', 'ㄸ', 'ㄴ']},
+                {'ㅒ': ['ㅖ', 'ㅑ', 'ㅣ']}, {'ㅖ': ['ㅒ','ㅣ']}]
     #키보드 위치의 자모음
     K = ['ㅂ','ㅈ','ㄷ','ㄱ','ㅅ','ㅛ','ㅕ','ㅑ','ㅐ',
          'ㅁ','ㄴ','ㅇ','ㄹ','ㅎ','ㅗ','ㅓ','ㅏ','ㅣ',
@@ -59,21 +63,28 @@ def keyboard_order():
             if(comp(num + locate)): KEYBOARD[c].append(K[num + locate])
 
     #쌍모음, 쌍자음
+    # c =  {'ㄳ': ['ㄱ', 'ㅅ']} ...
     for c in K_double:
         #쌍자모음
+        #'ㄳ'
         key = list(c.keys())[0]
 
         KEYBOARD[key] = []
 
         #쌍자모음의 분해
+        #['ㄱ','ㅅ']
         values = list(c.values())
 
-        if(len(values[0]) == 2 or c in ['ㄲ','ㄸ','ㅃ','ㅆ','ㅉ']):
+        if(len(values[0]) == 2):
             KEYBOARD[key] += [[i , values[0][1]] for i in KEYBOARD[values[0][0]]]
-            KEYBOARD[key] += [[values[0][0], i ] for i in KEYBOARD[values[0][0]]]
+            KEYBOARD[key] += [[values[0][0], i ] for i in KEYBOARD[values[0][1]]]
 
-        else:
-            KEYBOARD[key] += [KEYBOARD[values[0][0]]]
+    for c in K_double_one:
+        key = list(c.keys())[0]
+        values = list(c.values())
+        KEYBOARD[key] = []
+
+        KEYBOARD[key] += values[0]
 
 
 #10개의 오타를 제작한다.
@@ -101,6 +112,8 @@ def make_noisy(w):
 
     #분해한 문자의 길이
     word_len = len(word_split)
+    print(word_split)
+    print("------------------")
 
     #10번 반복하면서 교체 삭제 추가한다.
     for i in range(10):
@@ -118,8 +131,14 @@ def make_noisy(w):
             error_word = word_split[0:n] + word_split[n+1:]
         #추가
         else:
-            error_word = word_split[0:n+1] + list(near_key) + word_split[n+1:]
+            if(len(near_key) > 1):
+                error_word = word_split[0:n+1] + list(near_key[i%2]) + word_split[n+1:]
+            else:
+                error_word = word_split[0:n+1] + list(near_key) + word_split[n+1:]
         print(error_word)
+        mw = m.make_word(error_word)
+        mw.__main__()
+        print(mw.result)
     return word_split
 
 keyboard_order()
@@ -132,11 +151,7 @@ with open('dic.csv', 'r') as rf, open('dic_modify','w',newline = "\n") as wf:
         word = []
         if(r is None): pass
         word = row[0]
+        print("Target Data :",word)
         make_noisy(word)
+        print("------------------")
 
-#분해된 자모음을 글자로 합친다
-#['ㄱ','ㅏ'] -> '가'
-def combine_word(list_char):
-    #for c in len(list_char):
-     #   if(list_char[c])
-     print(1)
