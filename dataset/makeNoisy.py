@@ -92,6 +92,7 @@ def keyboard_order():
 #초성,중성,종성 및 각 글자는 랜덤으로 선택한다.
 def make_noisy(w):
     char = list(w)
+    #입력 단어를 분리해서 저장
     word_split = []
 
     for c in char:
@@ -112,11 +113,10 @@ def make_noisy(w):
 
     #분해한 문자의 길이
     word_len = len(word_split)
-    print(word_split)
-    print("------------------")
 
-    #10번 반복하면서 교체 삭제 추가한다.
-    for i in range(10):
+    error_word_list = []
+    #15번 반복하면서 교체 삭제 추가한다.
+    for i in range(15):
         error_word = []
         n = random.randrange(0,word_len)
         while(word_split[n] == ' '):
@@ -135,23 +135,35 @@ def make_noisy(w):
                 error_word = word_split[0:n+1] + list(near_key[i%2]) + word_split[n+1:]
             else:
                 error_word = word_split[0:n+1] + list(near_key) + word_split[n+1:]
-        print(error_word)
         mw = m.make_word(error_word)
         mw.__main__()
-        print(mw.result)
-    return word_split
+        error_word_list.append(mw.result)
 
+    #정답단어 추가
+    for i in range(5): error_word_list.append(w)
+
+    return error_word_list
 keyboard_order()
-print(KEYBOARD)
-with open('dic.csv', 'r') as rf, open('dic_modify','w',newline = "\n") as wf:
+#print(KEYBOARD)
+
+# target list
+word_list = []
+
+# input list
+word_error_list = []
+
+with open('dic.csv', 'r') as rf, open('dic_modify.csv','w',newline = "\n") as wf:
     r = csv.reader(rf)
     w = csv.writer(wf)
 
     for row in r:
         word = []
+
         if(r is None): pass
         word = row[0]
-        print("Target Data :",word)
-        make_noisy(word)
-        print("------------------")
 
+        for _ in range(20): word_list.append(word)
+        word_error_list += make_noisy(word)
+
+    w.writerow(word_list)
+    w.writerow(word_error_list)
