@@ -95,6 +95,9 @@ def make_noisy(w):
     #입력 단어를 분리해서 저장
     word_split = []
 
+    # 분리했을 때, 한 글자가 되는 범위
+    # ㄱㅏㅂㅏㅇ -> [0,1,4]
+    split_index = [0]
     for c in char:
         char_code = ord(c) - UNICODE_N
         #초성 분리
@@ -110,39 +113,74 @@ def make_noisy(w):
         #종성이 없는 경우는 더해주지 않는다.
         if(JONGSUNG[jongsung] != ' '):
             word_split.append(JONGSUNG[jongsung])
+        split_index.append(len(word_split) -1)
 
     #분해한 문자의 길이
     word_len = len(word_split)
-
     error_word_list = []
-    #15번 반복하면서 교체 삭제 추가한다.
-    for i in range(15):
-        error_word = []
-        n = random.randrange(0,word_len)
-        while(word_split[n] == ' '):
-            n = random.randrange(0, word_len)
+    target_word_list = []
 
-        near_key = random.choice(KEYBOARD[word_split[n]])
-        #교체
-        if (i % 3 == 0):
-            error_word = word_split[0:n] + list(near_key) + word_split[n+1:]
-        #삭제
-        elif (i % 3 == 1):
-            error_word = word_split[0:n] + word_split[n+1:]
-        #추가
-        else:
-            if(len(near_key) > 1):
-                error_word = word_split[0:n+1] + list(near_key[i%2]) + word_split[n+1:]
-            else:
-                error_word = word_split[0:n+1] + list(near_key) + word_split[n+1:]
-        mw = m.make_word(error_word)
-        mw.__main__()
-        error_word_list.append(mw.result)
+    len_w = len(w)
+    if(len(w) == 1):
+        len_w = 2
+        split_index[1] = 1
+
+    #글자의 수
+    for i in range(len_w - 1):
+        #target_word에 0을 삽입하기 위한 범위 지정
+        for n in range(split_index[i],split_index[i+1]):
+            error_split= []
+            #삭제
+            target_word = w
+            error_split= word_split[0:n] + word_split[n+1:]
+            error_word = m.combine_word(error_split)
+            while (len(error_word) > len(target_word)):
+                target_word = target_word[0:i] + '0' + target_word[i:]
+            error_word_list.append(error_word)
+            target_word_list.append(target_word)
+
+            #자리교체
+            if(n != 0):
+                target_word = w
+                if(n != 0): error_split= word_split[0:n-1] + list(word_split[n]) + list(word_split[n-1]) + word_split[n+1:]
+                error_word = m.combine_word(error_split)
+
+                while(len(error_word) > len(target_word)):
+                    target_word = target_word[0:i] + '0' + target_word[i:]
+                error_word_list.append(error_word)
+                target_word_list.append(target_word)
+
+
+            for near_key in (KEYBOARD[word_split[n]]):
+            # 교체
+                target_word = w
+                error_split= word_split[0:n] + list(near_key) + word_split[n + 1:]
+                error_word = m.combine_word(error_split)
+
+                while(len(error_word) > len(target_word)):
+                    target_word = target_word[0:i] + '0' + target_word[i:]
+                error_word_list.append(error_word)
+                target_word_list.append(target_word)
+            #추가
+                target_word = w
+                if(len(near_key) > 1):
+                    error_split= word_split[0:n+1] + list(near_key[i%2]) + word_split[n+1:]
+                else:
+                    error_split= word_split[0:n+1] + list(near_key) + word_split[n+1:]
+                error_word = m.combine_word(error_split)
+
+                while(len(error_word) > len(target_word)):
+                    target_word = target_word[0:i] + '0' + target_word[i:]
+
+                error_word_list.append(error_word)
+                target_word_list.append(target_word)
 
     #정답단어 추가
-    for i in range(5): error_word_list.append(w)
+    for i in range(5):
+        error_word_list.append(w)
+        target_word_list.append(w)
 
-    return error_word_list
+    return error_word_list, target_word_list
 keyboard_order()
 #print(KEYBOARD)
 
@@ -161,9 +199,8 @@ with open('dic.csv', 'r') as rf, open('dic_modify.csv','w',newline = "\n") as wf
 
         if(r is None): pass
         word = row[0]
-
-        for _ in range(20): word_list.append(word)
-        word_error_list += make_noisy(word)
-
+        error , target = make_noisy(word)
+        word_list += target
+        word_error_list += error
     w.writerow(word_list)
     w.writerow(word_error_list)

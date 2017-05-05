@@ -7,6 +7,7 @@
 MOUM = ['ㅏ', 'ㅐ', 'ㅑ', 'ㅒ', 'ㅓ', 'ㅔ', 'ㅕ', 'ㅖ', 'ㅗ', 'ㅘ', 'ㅙ', 'ㅚ', 'ㅛ', 'ㅜ', 'ㅝ', 'ㅞ', 'ㅟ', 'ㅠ', 'ㅡ', 'ㅢ', 'ㅣ']
 JAUM = ['ㄱ', 'ㄲ', 'ㄳ', 'ㄴ', 'ㄵ', 'ㄶ', 'ㄷ','ㄸ','ㄹ', 'ㄺ', 'ㄻ', 'ㄼ', 'ㄽ', 'ㄾ', 'ㄿ', 'ㅀ', 'ㅁ', 'ㅂ','ㅃ','ㅄ', 'ㅅ', 'ㅆ', 'ㅇ', 'ㅈ','ㅉ','ㅊ', 'ㅋ', 'ㅌ', 'ㅍ', 'ㅎ']
 
+
 #키보드에서 두번을 눌러야 제작할 수 있는 겹자음을
 #이 문서에서는 키보드겹자음이라고 칭한다
 double_j = ['ㄳ','ㄵ','ㄶ','ㄺ','ㄻ','ㄼ','ㄽ','ㄿ','ㅄ']
@@ -65,12 +66,11 @@ class make_word:
         else:
             # 이전 모음과, 현재 모음의 조합
             char_dic = [self.word[self.w_ptr - 1], self.word[self.w_ptr]]
-
             # 겹모음이 맞는 경우 -> 처음
             # 겹모음 합체
             if char_dic in K_double_m.values():
                 # 겹모음 합체
-                self.word[self.w_ptr - 2:self.w_ptr] = double_m[double_m_list.index(char_dic)]
+                self.word[self.w_ptr - 1:self.w_ptr+1] = double_m[double_m_list.index(char_dic)]
                 self.combine(self.w_ptr)
                 return
 
@@ -82,7 +82,6 @@ class make_word:
 
     def chosung(self):
         char = self.word[self.w_ptr]
-
         if(self.w_ptr+1 >= len(self.word)):
             return
 
@@ -261,8 +260,11 @@ class make_word:
         if(self.r_ptr <= len(self.word)):
             self.combine(self.w_ptr)
 
-"""
-m = make_word(['ㅇ','ㅓ','ㅄ','ㅏ','ㅣ'])
-m.__main__()
-print(m.result)
-"""
+
+def combine_word(word):
+    m = make_word(word)
+    m.__main__()
+    return m.result
+
+
+#combine_word(['ㅗ', 'ㅐ', 'ㅆ', 'ㄱ', 'ㅗ'])
