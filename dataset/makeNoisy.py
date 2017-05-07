@@ -1,10 +1,13 @@
-#키보드 오타를 삽입, 교체, 삭제의 형식으로 자동 생성한다
-#오타 삽입과 교체 기준은 키보드의 위치이다.
-#각 자판의 주변 위치를 list에 저장하고, random 하게 교체 혹은 삽입한다.
+"""
+키보드 오타를 삽입, 교체, 삭제의 형식으로 자동 생성한다
+오타 삽입과 교체 기준은 키보드의 위치이다.
+각 자판의 주변 위치를 list에 저장하고, random 하게 교체 혹은 삽입한다.
+"""
+
+
 import makeWord as m
 import csv
 import os
-import random
 
 #파일 위치
 file_location = 'C:/Users/kimhyeji/Desktop/현대문어_원시_말뭉치'
@@ -20,6 +23,10 @@ JONGSUNG = [' ', 'ㄱ', 'ㄲ', 'ㄳ', 'ㄴ', 'ㄵ', 'ㄶ', 'ㄷ', 'ㄹ', 'ㄺ', 
 
 #각 자판 주위의 자모음들을 저장하는 사전
 KEYBOARD = {}
+
+#예측값과 목표값이 같은 데이터 생성 갯수
+#학습시, 옳은 단어를 입력했을 경우, 같은 결과가 나와야 하기 때문
+same_word = 5
 
 #각 자판 주위의 자모음들을 저장한다.
 def keyboard_order():
@@ -87,7 +94,8 @@ def keyboard_order():
         KEYBOARD[key] += values[0]
 
 
-#10개의 오타를 제작한다.
+#기준음운의 주변 키보드 음운으로
+#가능한 모든 오타를 제작한다.
 #10/총 글자수 각 글자마다 동일한 갯수의 오타 제작
 #초성,중성,종성 및 각 글자는 랜덤으로 선택한다.
 def make_noisy(w):
@@ -130,7 +138,9 @@ def make_noisy(w):
         #target_word에 0을 삽입하기 위한 범위 지정
         for n in range(split_index[i],split_index[i+1]):
             error_split= []
+
             #삭제
+            #감사 -> 감ㅏ
             target_word = w
             error_split= word_split[0:n] + word_split[n+1:]
             error_word = m.combine_word(error_split)
@@ -140,6 +150,7 @@ def make_noisy(w):
             target_word_list.append(target_word)
 
             #자리교체
+            #감사 -> 갓마
             if(n != 0):
                 target_word = w
                 if(n != 0): error_split= word_split[0:n-1] + list(word_split[n]) + list(word_split[n-1]) + word_split[n+1:]
@@ -153,6 +164,7 @@ def make_noisy(w):
 
             for near_key in (KEYBOARD[word_split[n]]):
             # 교체
+            #감사 -> 감하
                 target_word = w
                 error_split= word_split[0:n] + list(near_key) + word_split[n + 1:]
                 error_word = m.combine_word(error_split)
@@ -162,6 +174,7 @@ def make_noisy(w):
                 error_word_list.append(error_word)
                 target_word_list.append(target_word)
             #추가
+            #감사 -> 감ㅎ사
                 target_word = w
                 if(len(near_key) > 1):
                     error_split= word_split[0:n+1] + list(near_key[i%2]) + word_split[n+1:]
@@ -175,8 +188,8 @@ def make_noisy(w):
                 error_word_list.append(error_word)
                 target_word_list.append(target_word)
 
-    #정답단어 추가
-    for i in range(5):
+    #오타에 목표단어를 그대로 추가
+    for i in range(same_word):
         error_word_list.append(w)
         target_word_list.append(w)
 
@@ -190,17 +203,23 @@ word_list = []
 # input list
 word_error_list = []
 
-with open('dic.csv', 'r') as rf, open('dic_modify.csv','w',newline = "\n") as wf:
+with open('dic.csv', 'r') as rf, open('C:/Users/kimhyeji/PycharmProjects/tfTest/dic_modify.csv','w',newline = "\n",encoding='utf-8') as wf:
     r = csv.reader(rf)
     w = csv.writer(wf)
-
+    len_all_data = 0
     for row in r:
         word = []
 
         if(r is None): pass
         word = row[0]
         error , target = make_noisy(word)
+        len_all_data += len(target)
         word_list += target
         word_error_list += error
-    w.writerow(word_list)
-    w.writerow(word_error_list)
+
+    for i in range(len(word_list)):
+        w.writerow([len(word_error_list[i]),word_error_list[i],word_list[i]])
+
+
+    #총 오타 수
+    print(len_all_data)
