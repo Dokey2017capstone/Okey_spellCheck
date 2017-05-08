@@ -13,6 +13,8 @@ class SmallConfig():
     batch_size = 20
     syllable_size = 11224
     hidden_size = 200
+    len_max = 7
+    data_size = 35228
 
 
 config = SmallConfig()
@@ -27,6 +29,8 @@ class Seq2Seq(object):
         self.batch_size = config.batch_size
         self.syllable_size = config.syllable_size
         self.hidden_size = config.hidden_size
+        self.len_max = config.len_max
+        self.data_size = config.data_size
 
     def init_placeholders(self):
         self.encoder_input_data = tf.placeholder(
@@ -54,23 +58,26 @@ class Seq2Seq(object):
         )
 
     def read_data(self,file_name):
-        try:
-            csv_file = tf.train.string_input_producer([file_name], name='file_name')
-            reader = tf.TextLineReader()
-            _, line = reader.read(csv_file)
-            len_error, error, target = tf.decode_csv(line,record_defaults=[[0],[""],[""]],field_delim=',')
-        except:
-            print("read_error")
-        return len_error, error, target
+
+        csv_file = tf.train.string_input_producer([file_name], name='file_name')
+        reader = tf.TextLineReader()
+        _, line = reader.read(csv_file)
+        record_defaults = [[1] for _ in range(self.len_max * 2 + 2)]
+        data = tf.decode_csv(line,record_defaults = record_defaults,field_delim=',')
+        len_error = tf.slice(data, [0],[1])
+        len_target = tf.slice(data,[1],[1])
+        error = tf.slice(data,[2],[self.len_max])
+        target = tf.slice(data, [2+self.len_max], [self.len_max])
+        return len_error, len_target, error, target
 
     def read_data_batch(self,file_name):
         """
             배치로 나눠 준다.
         """
 
-        len_x, x, y = self.read_data(file_name)
-        batch_len_x, batch_x, batch_y = tf.train.batch([len_x,x,y], batch_size = self.batch_size)
-        return batch_len_x, batch_x, batch_y
+        len_x, len_y, x, y = self.read_data(file_name)
+        batch_len_x, batch_len_y, batch_x, batch_y = tf.train.batch([len_x,len_y, x,y], dynamic_pad = True, batch_size = self.batch_size)
+        return batch_len_x, batch_len_y, batch_x, batch_y
 
     def shuffle_bucket_batch(self,input_len, tensors):
         """
@@ -94,7 +101,10 @@ class Seq2Seq(object):
             dynamic_pad=True,
             # 대기열에 수용할 수 있는 텐서의 수
             capacity=120)
-        return tuple(batch_tensors)
+
+        self.encoder_input_len = batch_len
+        self.encoder_input_data, self.decoder_target_data, self.decoder_target_len = batch_tensors
+
 
     def embeddings(self):
         with tf.variable_scope("embedding") as scope:
@@ -107,16 +117,54 @@ class Seq2Seq(object):
                                              initializer=initializer,
                                              dtype=tf.float32)
 
-            self.encoder_embedding_input = tf.nn.embedding_lookup(self.embedding, self.encoder_input_data)
-
             #self.decoder_embedding_input = tf.nn.embedding_lookup(self.embedding, self.decoder_input_data)
+
+    def init_encoder_cell(self):
+        with tf.variable_scope("encoder_cell") as scope:
+            encoder_cell_fw = tf.contrib.rnn.LSTMCell(self.hidden_size)
+            encoder_cell_bw = tf.contrib.rnn.LSTMCell(self.hidden_size)
+
+            ((encoder_fw_outputs,
+              encoder_bw_outputs),
+             (encoder_fw_final_state,
+              encoder_bw_final_state)) = (
+                tf.nn.bidirectional_dynamic_rnn(cell_fw=encoder_cell_fw,
+                                                cell_bw=encoder_cell_bw,
+                                                inputs=self.encoder_embedding_input,
+                                                sequence_length=self.encoder_inputs_length,
+                                                dtype=tf.float32, time_major=True)
+            )
+
+            encoder_outputs = tf.concat((encoder_fw_outputs, encoder_bw_outputs), 2)
+
+            encoder_final_state_c = tf.concat(
+                (encoder_fw_final_state.c, encoder_bw_final_state.c), 1)
+
+            encoder_final_state_h = tf.concat(
+                (encoder_fw_final_state.h, encoder_bw_final_state.h), 1)
+
+            encoder_final_state =tf.contirb.rnn. LSTMStateTuple(
+                c=encoder_final_state_c,
+                h=encoder_final_state_h
+            )
+    def make_train_inputs(self, x, y, len_x, len_y):
+        #학습용 배치를 제작
+        self.shuffle_bucket_batch(len_x, [x,y,len_y])
+
+
+    def make_test_inputs(self):
+        #테스트용 배치 입력 제작
+        return 1
 
     def make_model(self):
         self.init_placeholders()
-        len_x, x, y = self.read_data_batch(file_name)
-        self.source_batch, self.target_batch = self.shuffle_bucket_batch(len_x, [x, y])
-
+        len_x, len_y, x, y = self.read_data_batch(file_name)
         self.embeddings()
+
+        for i in range(self.data_size/self.batch_size):
+            self.make_train_inputs(x,y,len_x,len_y)
+            self.encoder_embedding_input = tf.nn.embedding_lookup(self.embedding, self.encoder_input_data)
+
 
 
 s = Seq2Seq()
@@ -129,8 +177,10 @@ s.make_model()
 with tf.Session() as sess:
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(sess, coord)
+    sess.run(tf.global_variables_initializer())
 
+    #에폭
     for i in range(10):
-        error , target = sess.run([s.source_batch, s.target_batch])
+        error = sess.run([s.encoder_embedding_input])
         print('test[%d]'%i)
         print(error)

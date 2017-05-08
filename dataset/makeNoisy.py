@@ -8,6 +8,7 @@
 import makeWord as m
 import csv
 import os
+import hangul as hg
 
 #파일 위치
 file_location = 'C:/Users/kimhyeji/Desktop/현대문어_원시_말뭉치'
@@ -203,7 +204,13 @@ word_list = []
 # input list
 word_error_list = []
 
+
+
 with open('dic.csv', 'r') as rf, open('C:/Users/kimhyeji/PycharmProjects/tfTest/dic_modify.csv','w',newline = "\n",encoding='utf-8') as wf:
+    #모든 한글 음절 인덱싱 사전
+    #ㄱ : 1 , ㄲ : 2 ...
+    index_dic = hg.char_dic
+
     r = csv.reader(rf)
     w = csv.writer(wf)
     len_all_data = 0
@@ -212,14 +219,28 @@ with open('dic.csv', 'r') as rf, open('C:/Users/kimhyeji/PycharmProjects/tfTest/
 
         if(r is None): pass
         word = row[0]
-        error , target = make_noisy(word)
-        len_all_data += len(target)
-        word_list += target
-        word_error_list += error
+        errors , targets = make_noisy(word)
+        len_all_data += len(targets)
+        word_list += [[index_dic[t] for t in target] for target in targets]
+        word_error_list += [[index_dic[e] for e in error] for error in errors]
 
+    #단어의 최대 길이 구하기
+    max = 0
     for i in range(len(word_list)):
-        w.writerow([len(word_error_list[i]),word_error_list[i],word_list[i]])
+        if (max < len(word_error_list[i])): max = len(word_error_list[i])
+        if (max < len(word_list[i])): max = len(word_list[i])
 
+    #데이터 생성, 저장
+    #error 단어 길이, target 단어 길이, error 단어, target 단어
+    for i in range(len(word_list)):
+
+        lists = [len(word_error_list[i]), len(word_list[i])]
+        lists += word_error_list[i]
+        for _ in range(max - len(word_error_list[i])): lists.append(0)
+        lists += word_list[i]
+        for _ in range(max - len(word_list[i])): lists.append(0)
+        w.writerow(lists)
 
     #총 오타 수
     print(len_all_data)
+    print(max)
