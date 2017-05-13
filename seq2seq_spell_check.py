@@ -1,4 +1,4 @@
-
+import recoverWord as rW
 import math
 import tensorflow as tf
 import tensorflow.contrib.seq2seq as seq2seq
@@ -7,7 +7,7 @@ from tensorflow.contrib.rnn import LSTMCell, LSTMStateTuple
 
 file_name = 'C:/Users/kimhyeji/PycharmProjects/tfTest/dic_modify.csv'
 graph_dir = 'C:/Users/kimhyeji/PycharmProjects/tfTest/tmp/test_logs'
-save_dir = 'C:/Users/kimhyeji/PycharmProjects/tfTest/tmp/checkpoint'
+save_dir = 'C:/Users/kimhyeji/PycharmProjects/tfTest/tmp/checkpoint_dir'
 class SmallConfig():
     """
     적은 학습 데이터에서의 하이퍼 파라미터
@@ -26,7 +26,7 @@ class SmallConfig():
     batch_print = 1000
 
     #에폭 수
-    epoch = 1
+    epoch = 1000
 
 config = SmallConfig()
 
@@ -35,13 +35,13 @@ class Seq2SeqModel():
     Requires TF 1.0.0-alpha"""
 
     PAD = 0
-    EOS = 1
+    EOS = -1
 
-    def __init__(self, encoder_cell, decoder_cell, vocab_size, embedding_size,
+    def __init__(self, encoder_cell, decoder_cell,
+                 batch_size=config.batch_size,epoch=config.epoch,
                  bidirectional=True,
-                 attention=False,
-                 debug=False):
-        self.debug = debug
+                 attention=False):
+
         self.bidirectional = bidirectional
         self.attention = attention
 
@@ -53,10 +53,10 @@ class Seq2SeqModel():
 
         self.vocab_size = config.syllable_size
         self.embedding_size = config.hidden_size
-        self.batch_size = config.batch_size
+        self.batch_size = batch_size
         self.len_max = config.len_max
         self.data_size = config.data_size
-        self.epoch = config.epoch
+        self.epoch = epoch
         self._make_graph()
 
     @property
@@ -64,10 +64,7 @@ class Seq2SeqModel():
         return self.decoder_cell.output_size
 
     def _make_graph(self):
-        if self.debug:
-            self._init_debug_inputs()
-        else:
-            self._init_placeholders()
+        self._init_placeholders()
 
         self._init_decoder_train_connectors()
         self._init_embeddings()
@@ -115,11 +112,11 @@ class Seq2SeqModel():
         with tf.name_scope('DecoderTrainFeeds'):
             sequence_size, batch_size = tf.unstack(tf.shape(self.decoder_targets))
 
-           # EOS_SLICE = tf.ones([1, batch_size], dtype=tf.int32) * self.EOS
-            PAD_SLICE = tf.ones([1, batch_size], dtype=tf.int32) * self.PAD
+            EOS_SLICE = tf.ones([1, batch_size], dtype=tf.int32) * self.EOS
+            #PAD_SLICE = tf.ones([1, batch_size], dtype=tf.int32) * self.PAD
 
             #decoder_input= <EOS> + decoder_targets
-            self.decoder_train_inputs = tf.concat([PAD_SLICE, self.decoder_targets], axis=0)
+            self.decoder_train_inputs = tf.concat([EOS_SLICE, self.decoder_targets], axis=0)
             self.decoder_train_length = self.decoder_targets_length
 
             #decoder_targets의 길이를 encoder_inputs과 맞추기 위해
@@ -128,7 +125,6 @@ class Seq2SeqModel():
             self.max_targets_len = tf.stack([tf.to_int64(tf.reduce_max(self.decoder_targets_length)),b_s])
             begin = tf.constant([0,0], dtype = tf.int64)
 
-            #decoder_targets = decoder_targets + <PAD>
             self.decoder_train_targets = tf.slice(self.decoder_targets, begin, self.max_targets_len)
 
             # decoder 가중치 초기화
@@ -149,11 +145,14 @@ class Seq2SeqModel():
             sqrt3 = math.sqrt(3)
             initializer = tf.random_uniform_initializer(-sqrt3, sqrt3)
 
+
             self.embedding_matrix = tf.get_variable(
                 name="embedding_matrix",
+                initializer = initializer,
                 shape=[self.vocab_size, self.embedding_size],
-                initializer=initializer,
                 dtype=tf.float32)
+
+
 
             self.encoder_inputs_embedded = tf.nn.embedding_lookup(
                 self.embedding_matrix, self.encoder_inputs)
@@ -399,13 +398,20 @@ def train_on_copy_task_(session, model,
 
                     print('batch {}'.format(batch))
                     print('  minibatch loss: {}'.format(session.run(model.loss, fd)))
-                    for i, (e_in, dt_pred) in enumerate(zip(
+                    for i, (e_in, d_ot, dt_pred) in enumerate(zip(
                             fd[model.encoder_inputs].T,
+                            fd[model.decoder_targets].T,
                             session.run(model.decoder_prediction_train, fd).T
                     )):
                         print('  sample {}:'.format(i + 1))
+
                         print('    enc input           > {}'.format(e_in))
+                        print('    dec target          > {}'.format(d_ot))
                         print('    dec train predicted > {}'.format(dt_pred))
+                        print('    enc input           > {}'.format(rW.recover_word(e_in)))
+                        print('    dec target          > {}'.format(rW.recover_word(d_ot)))
+                        print('    dec train predicted > {}'.format(rW.recover_word(dt_pred)))
+
                         if i >= 2:
                             break
                     print()
@@ -416,15 +422,14 @@ def train_on_copy_task_(session, model,
 
 
 
+
+
 tf.reset_default_graph()
-tf.set_random_seed(1)
 model = Seq2SeqModel(encoder_cell=LSTMCell(10),
                          decoder_cell=LSTMCell(20),
-                         vocab_size=12000,
-                         embedding_size=200,
                          attention=True,
-                         bidirectional=True,
-                         debug=False)
+                         bidirectional=True)
+
 b_len_x, b_len_y, b_x, b_y = model.read_data_batch(file_name)
 
 #tensorboard에 graph 출력을 위해
@@ -438,18 +443,22 @@ with tf.Session() as session:
     initial_step = 0
     ckpt = tf.train.get_checkpoint_state(save_dir)
 
+    coord = tf.train.Coordinator()
+    threads = tf.train.start_queue_runners(sess=session, coord=coord)
+
+    session.run(tf.global_variables_initializer())
+
     #checkpoint가 존재할 경우 변수 값을 복구한다.
     if ckpt and ckpt.model_checkpoint_path:
         saver.restore(session, ckpt.model_checkpoint_path)
         #복구한 시작 지점
         initial_step = int(ckpt.model_checkpoint_path.rsplit('-', 1)[1])
+        print("Checkpoint")
         print(initial_step)
+    else:
+        print("No Checkpoint")
 
     try:
-        coord = tf.train.Coordinator()
-        threads = tf.train.start_queue_runners(sess=session, coord=coord)
-
-        session.run(tf.global_variables_initializer())
         train_on_copy_task_(session, model,
                            b_len_x, b_len_y, b_x, b_y,
                            initial_step,
@@ -459,13 +468,34 @@ with tf.Session() as session:
     except tf.errors.OutOfRangeError as e:
         print("X(")
 
-
 """
+
 tf.reset_default_graph()
-        with tf.Session() as session:
-            model = make_seq2seq_model()
-            session.run(tf.global_variables_initializer())
-            fd = model.make_inference_inputs([[5, 4, 6, 7], [6, 6]])
-            inf_out = session.run(model.decoder_prediction_inference, fd)
-            print(inf_out)
+model = Seq2SeqModel(encoder_cell=LSTMCell(10),
+                         decoder_cell=LSTMCell(20),
+                         batch_size= 1, epoch=1,
+                         attention=True,
+                         bidirectional=True)
+
+with tf.Session() as session:
+
+    merged = tf.summary.merge_all()
+    writer = tf.summary.FileWriter(graph_dir, session.graph)
+
+    saver = tf.train.Saver()
+    initial_step = 0
+    ckpt = tf.train.get_checkpoint_state(save_dir)
+
+     #checkpoint가 존재할 경우 변수 값을 복구한다.
+    if ckpt and ckpt.model_checkpoint_path:
+        saver.restore(session, ckpt.model_checkpoint_path)
+        #복구한 시작 지점
+        initial_step = int(ckpt.model_checkpoint_path.rsplit('-', 1)[1])
+        print("Checkpoint")
+        print(initial_step)
+
+    session.run(tf.global_variables_initializer())
+    fd = model.make_inference_inputs([1], [[1], [11140],[0],[0],[0],[0],[0]])
+    inf_out = session.run(model.decoder_prediction_inference, fd)
+    print(inf_out)
 """

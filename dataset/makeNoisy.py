@@ -2,6 +2,19 @@
 키보드 오타를 삽입, 교체, 삭제의 형식으로 자동 생성한다
 오타 삽입과 교체 기준은 키보드의 위치이다.
 각 자판의 주변 위치를 list에 저장하고, random 하게 교체 혹은 삽입한다.
+
+split_data(string)
+    string: 단어
+    return 단어를 음운으로 분해한 리스트
+
+make_noisy(string)
+    string: 단어
+    return 단어에 대한 오타리스트,정답리스트 튜플
+            오타가 정답단어보다 길어진 경우 정답단어에 0으로 패딩작업을 수행
+
+make_train_data()
+    word_list_dir에 있는 단어 리스트를
+    save_file에 [오타단어길이, 정답단어길이, 오타글자인덱싱, 정답글자인덱싱] 형식으로 저장한다.
 """
 
 
@@ -10,10 +23,9 @@ import csv
 import os
 import hangul as hg
 
-#파일 위치
-file_location = 'C:/Users/kimhyeji/Desktop/현대문어_원시_말뭉치'
-#작업 위치를 변경한다.
-os.chdir(file_location)
+# 파일 위치
+word_list_dir = 'C:/Users/kimhyeji/Desktop/현대문어_원시_말뭉치'
+save_file = 'C:/Users/kimhyeji/PycharmProjects/tfTest/dic_modify.csv'
 
 
 #한글 음소 분할을 위한 변수 설정
@@ -27,7 +39,7 @@ KEYBOARD = {}
 
 #예측값과 목표값이 같은 데이터 생성 갯수
 #학습시, 옳은 단어를 입력했을 경우, 같은 결과가 나와야 하기 때문
-same_word = 5
+same_word = 1
 
 #각 자판 주위의 자모음들을 저장한다.
 def keyboard_order():
@@ -95,37 +107,51 @@ def keyboard_order():
         KEYBOARD[key] += values[0]
 
 
-#기준음운의 주변 키보드 음운으로
-#가능한 모든 오타를 제작한다.
-#10/총 글자수 각 글자마다 동일한 갯수의 오타 제작
-#초성,중성,종성 및 각 글자는 랜덤으로 선택한다.
-def make_noisy(w):
-    char = list(w)
+def split_word(word):
+    """
+    단어를 분리한다.
+    :param word: 단어
+    :return: [ㄷ,ㅏ,ㄴ,ㅇ,ㅓ]
+    """
+    char = list(word)
+    
     #입력 단어를 분리해서 저장
-    word_split = []
+    split_list = []
 
     # 분리했을 때, 한 글자가 되는 범위
     # ㄱㅏㅂㅏㅇ -> [0,1,4]
     split_index = [0]
+    
     for c in char:
         char_code = ord(c) - UNICODE_N
         #초성 분리
         chosung = int(char_code / CHOSUNG_N)
-        word_split.append(CHOSUNG[chosung])
+        split_list.append(CHOSUNG[chosung])
 
         #종성 분리
         jungsung =  int((char_code - (CHOSUNG_N * chosung)) / JUNGSUNG_N)
-        word_split.append(JUNGSUNG[jungsung])
+        split_list.append(JUNGSUNG[jungsung])
 
         #종성 분리
         jongsung = int((char_code - (CHOSUNG_N * chosung) - (JUNGSUNG_N * jungsung)))
         #종성이 없는 경우는 더해주지 않는다.
         if(JONGSUNG[jongsung] != ' '):
-            word_split.append(JONGSUNG[jongsung])
-        split_index.append(len(word_split) -1)
+            split_list.append(JONGSUNG[jongsung])
+            
+        split_index.append(len(split_list) -1)
+    return split_list, split_index
+
+def make_noisy(w):
+    """
+    기준음운의 주변 키보드 음운으로
+    가능한 모든 오타를 제작한다.
+    초성,중성,종성 및 각 글자는 랜덤으로 선택한다.
+    """
+
+    split_list, split_index = split_word(w)
 
     #분해한 문자의 길이
-    word_len = len(word_split)
+    word_len = len(split_list)
     error_word_list = []
     target_word_list = []
 
@@ -143,7 +169,7 @@ def make_noisy(w):
             #삭제
             #감사 -> 감ㅏ
             target_word = w
-            error_split= word_split[0:n] + word_split[n+1:]
+            error_split= split_list[0:n] + split_list[n+1:]
             error_word = m.combine_word(error_split)
             while (len(error_word) > len(target_word)):
                 target_word = target_word[0:i] + '0' + target_word[i:]
@@ -154,7 +180,7 @@ def make_noisy(w):
             #감사 -> 갓마
             if(n != 0):
                 target_word = w
-                if(n != 0): error_split= word_split[0:n-1] + list(word_split[n]) + list(word_split[n-1]) + word_split[n+1:]
+                if(n != 0): error_split= split_list[0:n-1] + list(split_list[n]) + list(split_list[n-1]) + split_list[n+1:]
                 error_word = m.combine_word(error_split)
 
                 while(len(error_word) > len(target_word)):
@@ -163,11 +189,11 @@ def make_noisy(w):
                 target_word_list.append(target_word)
 
 
-            for near_key in (KEYBOARD[word_split[n]]):
+            for near_key in (KEYBOARD[split_list[n]]):
             # 교체
             #감사 -> 감하
                 target_word = w
-                error_split= word_split[0:n] + list(near_key) + word_split[n + 1:]
+                error_split= split_list[0:n] + list(near_key) + split_list[n + 1:]
                 error_word = m.combine_word(error_split)
 
                 while(len(error_word) > len(target_word)):
@@ -178,9 +204,9 @@ def make_noisy(w):
             #감사 -> 감ㅎ사
                 target_word = w
                 if(len(near_key) > 1):
-                    error_split= word_split[0:n+1] + list(near_key[i%2]) + word_split[n+1:]
+                    error_split= split_list[0:n+1] + list(near_key[i%2]) + split_list[n+1:]
                 else:
-                    error_split= word_split[0:n+1] + list(near_key) + word_split[n+1:]
+                    error_split= split_list[0:n+1] + list(near_key) + split_list[n+1:]
                 error_word = m.combine_word(error_split)
 
                 while(len(error_word) > len(target_word)):
@@ -195,52 +221,67 @@ def make_noisy(w):
         target_word_list.append(w)
 
     return error_word_list, target_word_list
-keyboard_order()
-#print(KEYBOARD)
 
-# target list
-word_list = []
+def make_train_data():
+    """
+    단어 리스트에서 오타를 생성해,
+    [오타길이, 정답길이, 오타인덱싱, 정답인덱싱]
+    목록을 반환한다.
+    """
 
-# input list
-word_error_list = []
+    # 작업 위치를 변경한다.
+    os.chdir(word_list_dir)
+
+    #오타 생성 시 필요한 키보드 배열
+    keyboard_order()
+    #print(KEYBOARD)
+
+    # target list
+    word_list = []
+    # input list
+    word_error_list = []
 
 
+    with open('dic.csv', 'r') as rf, open(save_file,'w',newline = "\n",encoding='utf-8') as wf:
+        #모든 한글 음절 인덱싱 사전
+        #ㄱ : 1 , ㄲ : 2 ...
+        index_dic = hg.char_dic
 
-with open('dic.csv', 'r') as rf, open('C:/Users/kimhyeji/PycharmProjects/tfTest/dic_modify.csv','w',newline = "\n",encoding='utf-8') as wf:
-    #모든 한글 음절 인덱싱 사전
-    #ㄱ : 1 , ㄲ : 2 ...
-    index_dic = hg.char_dic
+        r = csv.reader(rf)
+        w = csv.writer(wf)
+        len_all_data = 0
+        for row in r:
+            word = []
 
-    r = csv.reader(rf)
-    w = csv.writer(wf)
-    len_all_data = 0
-    for row in r:
-        word = []
+            if(r is None): pass
+            word = row[0]
+            errors , targets = make_noisy(word)
+            len_all_data += len(targets)
+            word_list += [[index_dic[t] for t in target] for target in targets]
+            word_error_list += [[index_dic[e] for e in error] for error in errors]
 
-        if(r is None): pass
-        word = row[0]
-        errors , targets = make_noisy(word)
-        len_all_data += len(targets)
-        word_list += [[index_dic[t] for t in target] for target in targets]
-        word_error_list += [[index_dic[e] for e in error] for error in errors]
+        #단어의 최대 길이 구하기
+        max = 0
+        for i in range(len(word_list)):
+            if (max < len(word_error_list[i])): max = len(word_error_list[i])
+            if (max < len(word_list[i])): max = len(word_list[i])
 
-    #단어의 최대 길이 구하기
-    max = 0
-    for i in range(len(word_list)):
-        if (max < len(word_error_list[i])): max = len(word_error_list[i])
-        if (max < len(word_list[i])): max = len(word_list[i])
+        #데이터 생성, 저장
+        #error 단어 길이, target 단어 길이, error 단어, target 단어
+        for i in range(len(word_list)):
 
-    #데이터 생성, 저장
-    #error 단어 길이, target 단어 길이, error 단어, target 단어
-    for i in range(len(word_list)):
+            lists = [len(word_error_list[i]), len(word_list[i])]
+            lists += word_error_list[i]
+            for _ in range(max - len(word_error_list[i])): lists.append(0)
+            lists += word_list[i]
+            for _ in range(max - len(word_list[i])): lists.append(0)
+            w.writerow(lists)
 
-        lists = [len(word_error_list[i]), len(word_list[i])]
-        lists += word_error_list[i]
-        for _ in range(max - len(word_error_list[i])): lists.append(0)
-        lists += word_list[i]
-        for _ in range(max - len(word_list[i])): lists.append(0)
-        w.writerow(lists)
+        #총 오타 수
+        print(len_all_data)
+        print(max)
 
-    #총 오타 수
-    print(len_all_data)
-    print(max)
+
+"""
+make_train_data()
+"""
