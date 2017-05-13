@@ -36,17 +36,12 @@ def recover_word(word_list):
 def convert_num(word):
     """
     한글을 입력 인덱싱 형태로 변환한다.
-    [오타길이, 오타]
     """
-    split_list, _ = mN.split_word(word)
     error = []
-    for i in split_list:
+    for i in word:
         error.append(dic_word[i])
 
-    result = []
-    result.append(len(error))
-    result += error
-    return result
+    return error
 
 """
 print(recover_word([4,9488,192,0,0,0,0]))

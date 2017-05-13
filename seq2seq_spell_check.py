@@ -113,12 +113,17 @@ class Seq2SeqModel():
             sequence_size, batch_size = tf.unstack(tf.shape(self.decoder_targets))
 
             EOS_SLICE = tf.ones([1, batch_size], dtype=tf.int32) * self.EOS
-            #PAD_SLICE = tf.ones([1, batch_size], dtype=tf.int32) * self.PAD
+            PAD_SLICE = tf.ones([1, batch_size], dtype=tf.int32) * self.PAD
 
             #decoder_input= <EOS> + decoder_targets
             self.decoder_train_inputs = tf.concat([EOS_SLICE, self.decoder_targets], axis=0)
             self.decoder_train_length = self.decoder_targets_length
 
+            self.decoder_train_targets = self.decoder_targets
+
+            #dynamic_rnn은 길이의 입력을 인자로 받기 때문에
+            #모든 단어는 7의 길이로 지정해 주었다.(임시방편)
+            """
             #decoder_targets의 길이를 encoder_inputs과 맞추기 위해
             #batch 내의 최대 길이를 찾아서 decoder_targets로 맞춰줌
             b_s = tf.constant(self.batch_size, dtype=tf.int64)
@@ -126,14 +131,13 @@ class Seq2SeqModel():
             begin = tf.constant([0,0], dtype = tf.int64)
 
             self.decoder_train_targets = tf.slice(self.decoder_targets, begin, self.max_targets_len)
-
+            """
             # decoder 가중치 초기화
             with tf.name_scope('DecoderTrainFeeds'):
                 self.loss_weights = tf.ones([
                     self.batch_size,
-                    tf.reduce_max(self.decoder_targets_length)
+                    self.len_max
                 ], dtype=tf.float32, name="loss_weights")
-
     def _init_embeddings(self):
         """
         음운의 embedding
@@ -204,8 +208,7 @@ class Seq2SeqModel():
     def _init_decoder(self):
         """
             decoder cell.
-            attention적용/비적용 경우.
-            두개를 비교해야함
+            attention적용 시 결과가 좋지 않음.
         """
         with tf.variable_scope("Decoder") as scope:
             def output_fn(outputs):
@@ -266,7 +269,7 @@ class Seq2SeqModel():
                     cell=self.decoder_cell,
                     decoder_fn=decoder_fn_train,
                     inputs=self.decoder_train_inputs_embedded,
-                    sequence_length=self.decoder_train_length,
+                    sequence_length=[self.len_max for _ in range(self.batch_size)],
                     time_major=True,
                     scope=scope,
                 )
@@ -291,7 +294,6 @@ class Seq2SeqModel():
 
     def _init_optimizer(self):
 
-        ##################### 고쳐야할 부분. transpose 가 필요가 없다.###############
         logits = tf.transpose(self.decoder_logits_train, [1, 0, 2])
         targets = tf.transpose(self.decoder_train_targets, [1, 0])
 
@@ -353,9 +355,11 @@ class Seq2SeqModel():
         len_x, len_y, x, y = self.read_data(file_name)
 
         #session 단계에서 queue를 생성해줘야 한다.
-        batch_len_x, batch_len_y, batch_x, batch_y = tf.train.batch([len_x,len_y,x,y], dynamic_pad = True, batch_size = self.batch_size)
+        #무작위로 batch를 적용
+        batch_len_x, batch_len_y, batch_x, batch_y = tf.train.shuffle_batch([len_x,len_y,x,y],
+                                                                            batch_size = self.batch_size,
+                                                                            capacity=10000,min_after_dequeue=3000)
 
-        ############고쳐야하는 부분. 전체적인 형태를 transpose 없이 고쳐야함#################
         batch_len_x = tf.reshape(batch_len_x,[-1])
         batch_len_y = tf.reshape(batch_len_y,[-1])
         batch_x = tf.transpose(batch_x)
@@ -386,7 +390,6 @@ def train_on_copy_task_(session, model,
             b_len_x, b_len_y, b_x, b_y = session.run([len_x, len_y, x, y])
 
             fd = model.make_train_inputs(b_len_x, b_len_y, b_x, b_y)
-            _ = session.run(model.max_targets_len, fd)
             _, l = session.run([model.train_op, model.loss], fd)
             loss_track.append(l)
 
@@ -422,15 +425,15 @@ def train_on_copy_task_(session, model,
 
 
 
-
-
 tf.reset_default_graph()
 model = Seq2SeqModel(encoder_cell=LSTMCell(10),
                          decoder_cell=LSTMCell(20),
-                         attention=True,
+                         attention=False,
                          bidirectional=True)
 
 b_len_x, b_len_y, b_x, b_y = model.read_data_batch(file_name)
+
+
 
 #tensorboard에 graph 출력을 위해
 tf.summary.scalar('cost',model.loss)
@@ -474,7 +477,7 @@ tf.reset_default_graph()
 model = Seq2SeqModel(encoder_cell=LSTMCell(10),
                          decoder_cell=LSTMCell(20),
                          batch_size= 1, epoch=1,
-                         attention=True,
+                         attention=False,
                          bidirectional=True)
 
 with tf.Session() as session:
@@ -495,7 +498,9 @@ with tf.Session() as session:
         print(initial_step)
 
     session.run(tf.global_variables_initializer())
-    fd = model.make_inference_inputs([1], [[1], [11140],[0],[0],[0],[0],[0]])
-    inf_out = session.run(model.decoder_prediction_inference, fd)
-    print(inf_out)
+    word = "무ㅗㄴ제에"
+    index_word = rW.convert_num(word)
+    fd = model.make_inference_inputs([len(word)], [[i] for i in index_word])
+    inf_out = session.run(model.decoder_prediction_inference, fd).T[0]
+    print(rW.recover_word(inf_out))
 """
