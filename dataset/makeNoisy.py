@@ -24,7 +24,7 @@ import os
 import hangul as hg
 
 # 파일 위치
-word_list_dir = 'C:/Users/kimhyeji/Desktop/현대문어_원시_말뭉치'
+word_list_dir = 'C:/Users/kimhyeji/Desktop/데이터'
 save_file = 'C:/Users/kimhyeji/PycharmProjects/tfTest/dic_modify.csv'
 
 
@@ -45,7 +45,7 @@ same_word = 1
 def keyboard_order():
     #겹자모음을 이루는 자모음들
     K_double = [{'ㄳ': ['ㄱ', 'ㅅ']}, {'ㄵ': ['ㄴ', 'ㅈ']}, {'ㄶ': ['ㄴ', 'ㅎ']}, {'ㄺ': ['ㄹ', 'ㄱ']}, {'ㄻ': ['ㄹ', 'ㅁ']},
-                {'ㄼ': ['ㄹ', 'ㅂ']}, {'ㄽ': ['ㄹ', 'ㅅ']}, {'ㄿ': ['ㄹ', 'ㅍ']}, {'ㅄ': ['ㅂ', 'ㅅ']},
+                {'ㄼ': ['ㄹ', 'ㅂ']}, {'ㄽ': ['ㄹ', 'ㅅ']}, {'ㄿ': ['ㄹ', 'ㅍ']}, {'ㅀ':['ㄹ','ㅎ']},{'ㅄ': ['ㅂ', 'ㅅ']},
                 {'ㅘ': ['ㅗ', 'ㅏ']}, {'ㅙ': ['ㅗ', 'ㅐ']}, {'ㅚ': ['ㅗ', 'ㅣ']}, {'ㅝ': ['ㅜ', 'ㅓ']}, {'ㅞ': ['ㅜ', 'ㅔ']},
                 {'ㅟ': ['ㅜ', 'ㅣ']}, {'ㅢ': ['ㅡ', 'ㅣ']}]
 
@@ -189,7 +189,6 @@ def make_noisy(w):
                 error_word_list.append(error_word)
                 target_word_list.append(target_word)
 
-
             for near_key in (KEYBOARD[split_list[n]]):
             # 교체
             #감사 -> 감하
@@ -250,16 +249,23 @@ def make_train_data():
 
         r = csv.reader(rf)
         w = csv.writer(wf)
+
         len_all_data = 0
         for row in r:
             word = []
 
             if(r is None): pass
             word = row[0]
-            errors , targets = make_noisy(word)
-            len_all_data += len(targets)
-            word_list += [[index_dic[t] for t in target] for target in targets]
-            word_error_list += [[index_dic[e] for e in error] for error in errors]
+            if(len(word) > 7):
+                continue
+            try:
+                errors , targets = make_noisy(word)
+
+                len_all_data += len(targets)
+                word_list += [[index_dic[t] for t in target] for target in targets]
+                word_error_list += [[index_dic[e] for e in error] for error in errors]
+            except:
+                print(word)
 
         #단어의 최대 길이 구하기
         max = 0
@@ -283,5 +289,6 @@ def make_train_data():
         print(max)
 
 
-
+#학습 시 , 반드시 주석처리해주어야함
+#반! 드! 시
 #make_train_data()

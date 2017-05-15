@@ -2,7 +2,7 @@ import recoverWord as rW
 import math
 import tensorflow as tf
 import tensorflow.contrib.seq2seq as seq2seq
-from tensorflow.contrib.rnn import LSTMCell, LSTMStateTuple
+from tensorflow.contrib.rnn import LSTMCell, LSTMStateTuple, GRUCell
 
 
 file_name = 'C:/Users/kimhyeji/PycharmProjects/tfTest/dic_modify.csv'
@@ -12,12 +12,15 @@ class SmallConfig():
     """
     적은 학습 데이터에서의 하이퍼 파라미터
     """
-
-    batch_size = 20
+    learning_rate = 1.0
+    batch_size = 50
     syllable_size = 11224
     hidden_size = 200
-    len_max = 7
-    data_size = 35228
+    len_max = 9
+    data_size = 1524670
+
+    #신경망 계층
+    hidden_layers = 3
 
     #1에폭 당 배치의 개수
     max_batches = int(data_size/batch_size)
@@ -28,6 +31,15 @@ class SmallConfig():
     #에폭 수
     epoch = 1000
 
+    # 기울기 값의 상한 설정
+    # 기울기 clipping을 위함
+    # 기울기 L2-norm 이 max_grad_norm보다 크면 배수만큼 나누어 기울기 값을 줄인다.
+    ####L2-norm :  거리
+    max_grad_norm = 10
+
+    # 학습을 할 수록 수를 줄여, learning_rate과 곱해 학습 속도를 완성한다.
+    lr_decay = 0.5
+
 config = SmallConfig()
 
 class Seq2SeqModel():
@@ -35,7 +47,7 @@ class Seq2SeqModel():
     Requires TF 1.0.0-alpha"""
 
     PAD = 0
-    EOS = -1
+    EOS = 0
 
     def __init__(self, encoder_cell, decoder_cell,
                  batch_size=config.batch_size,epoch=config.epoch,
@@ -45,12 +57,15 @@ class Seq2SeqModel():
         self.bidirectional = bidirectional
         self.attention = attention
 
+
         self.encoder_cell = encoder_cell
         self.decoder_cell = decoder_cell
 
+        self.hidden_layers = config.hidden_layers
         self.max_batches = config.max_batches
         self.batch_print = config.batch_print
-
+        self.max_grad_norm = config.max_grad_norm
+        self.lr_decay = config.lr_decay
         self.vocab_size = config.syllable_size
         self.embedding_size = config.hidden_size
         self.batch_size = batch_size
@@ -117,7 +132,7 @@ class Seq2SeqModel():
 
             #decoder_input= <EOS> + decoder_targets
             self.decoder_train_inputs = tf.concat([EOS_SLICE, self.decoder_targets], axis=0)
-            self.decoder_train_length = self.decoder_targets_length
+            self.decoder_train_length = self.decoder_targets_length+1
 
             self.decoder_train_targets = self.decoder_targets
 
@@ -145,10 +160,7 @@ class Seq2SeqModel():
         """
         with tf.variable_scope("embedding") as scope:
 
-            # Uniform(-sqrt(3), sqrt(3)) has variance=1.
-            sqrt3 = math.sqrt(3)
-            initializer = tf.random_uniform_initializer(-sqrt3, sqrt3)
-
+            initializer = tf.contrib.layers.xavier_initializer()
 
             self.embedding_matrix = tf.get_variable(
                 name="embedding_matrix",
@@ -178,14 +190,19 @@ class Seq2SeqModel():
         """
         input을 뒤집어서 한번 더 학습시킨다.
         """
+
+
         with tf.variable_scope("BidirectionalEncoder") as scope:
 
+            #hidden_layer 계층을 늘린다.
+            encoder_cell_fw_multi = tf.contrib.rnn.MultiRNNCell([self.encoder_cell for _ in range(self.hidden_layers)], state_is_tuple=True)
+            encoder_cell_bw_multi = tf.contrib.rnn.MultiRNNCell([self.encoder_cell for _ in range(self.hidden_layers)], state_is_tuple=True)
             ((encoder_fw_outputs,
               encoder_bw_outputs),
              (encoder_fw_state,
               encoder_bw_state)) = (
-                tf.nn.bidirectional_dynamic_rnn(cell_fw=self.encoder_cell,
-                                                cell_bw=self.encoder_cell,
+                tf.nn.bidirectional_dynamic_rnn(cell_fw=encoder_cell_fw_multi,
+                                                cell_bw=encoder_cell_bw_multi,
                                                 inputs=self.encoder_inputs_embedded,
                                                 sequence_length=self.encoder_inputs_length,
                                                 time_major=True,
@@ -195,7 +212,6 @@ class Seq2SeqModel():
             self.encoder_outputs = tf.concat((encoder_fw_outputs, encoder_bw_outputs), 2)
 
             if isinstance(encoder_fw_state, LSTMStateTuple):
-
                 encoder_state_c = tf.concat(
                     (encoder_fw_state.c, encoder_bw_state.c), 1, name='bidirectional_concat_c')
                 encoder_state_h = tf.concat(
@@ -204,7 +220,11 @@ class Seq2SeqModel():
 
             elif isinstance(encoder_fw_state, tf.Tensor):
                 self.encoder_state = tf.concat((encoder_fw_state, encoder_bw_state), 1, name='bidirectional_concat')
+            else:
+                encoder_fw_state = encoder_fw_state[-1]
+                encoder_bw_state = encoder_bw_state[-1]
 
+                self.encoder_state = tf.concat((encoder_fw_state, encoder_bw_state),1,name='bidirectional_concat')
     def _init_decoder(self):
         """
             decoder cell.
@@ -214,6 +234,10 @@ class Seq2SeqModel():
             def output_fn(outputs):
                 return tf.contrib.layers.linear(outputs, self.vocab_size, scope=scope)
 
+            #print(self.decoder_cell.state_size)
+            #decoder_cell_multi = tf.contrib.rnn.MultiRNNCell([self.decoder_cell for _ in range(self.hidden_layers)], state_is_tuple=True)
+            #print(decoder_cell_multi.state_size)
+
             if not self.attention:
                 decoder_fn_train = seq2seq.simple_decoder_fn_train(encoder_state=self.encoder_state)
                 decoder_fn_inference = seq2seq.simple_decoder_fn_inference(
@@ -222,7 +246,7 @@ class Seq2SeqModel():
                     embeddings=self.embedding_matrix,
                     start_of_sequence_id=self.EOS,
                     end_of_sequence_id=self.EOS,
-                    maximum_length=tf.reduce_max(self.encoder_inputs_length) + 3,
+                    maximum_length=self.len_max,
                     num_decoder_symbols=self.vocab_size,
                 )
             else:
@@ -258,7 +282,7 @@ class Seq2SeqModel():
                     embeddings=self.embedding_matrix,
                     start_of_sequence_id=self.EOS,
                     end_of_sequence_id=self.EOS,
-                    maximum_length=tf.reduce_max(self.encoder_inputs_length) + 3,
+                    maximum_length=self.len_max,
                     num_decoder_symbols=self.vocab_size,
                 )
 
@@ -300,8 +324,28 @@ class Seq2SeqModel():
         #손실함수
         self.loss = seq2seq.sequence_loss(logits=logits, targets=targets,
                                           weights=self.loss_weights)
-        #Optimizer를 변경해보는 시도도 필요함
+
+        #기울기 클리핑
+        #self.lr = tf.Variable(0.0, trainable=False, name='lr')
+
+        # 훈련이 가능하다고 설정한 모든 변수들
+        #tvars = tf.trainable_variables()
+
+        # 여러 값들에 대한 기울기 클리핑
+        # contrib.keras.backend.gradients
+        # gradients gradients of variables
+
+        #grads, _ = tf.clip_by_global_norm(tf.gradients(self.loss, tvars), config.max_grad_norm)
+
+        #optimizer = tf.train.AdamOptimizer(self.lr)
+        #self.train_op = optimizer.apply_gradients(zip(grads, tvars))
         self.train_op = tf.train.AdamOptimizer().minimize(self.loss)
+
+        ###학습속도 설정
+    def assign_lr(self, session, lr_value):
+        session.run(tf.assign(self.lr, lr_value))
+
+        #self.train_op = tf.train.AdamOptimizer().minimize(self.loss)
 
     def make_train_inputs(self, inputs_length_, targets_length_, inputs_, targets_ ):
         """
@@ -368,14 +412,6 @@ class Seq2SeqModel():
         return batch_len_x, batch_len_y, batch_x, batch_y
 
 
-def make_seq2seq_model(**kwargs):
-    args = dict(encoder_cell=LSTMCell(10),
-                decoder_cell=LSTMCell(20),
-                attention=True,
-                bidirectional=True)
-    args.update(kwargs)
-    return Seq2SeqModel(**args)
-
 
 def train_on_copy_task_(session, model,
                         len_x,len_y,x,y,
@@ -385,26 +421,37 @@ def train_on_copy_task_(session, model,
             학습을 실행하는 함수
     """
     loss_track = []
+    loss = 0
+    loss_all = 0
+    p_loss_all = 0
     for epoch in range(initial_step,model.epoch):
+        print(loss_track)
+        print(p_loss_all)
+        print(loss_all / 30)
+        p_loss_all = loss_all
+        loss_all = 0
         for batch in range(model.max_batches + 1):
             b_len_x, b_len_y, b_x, b_y = session.run([len_x, len_y, x, y])
 
             fd = model.make_train_inputs(b_len_x, b_len_y, b_x, b_y)
             _, l = session.run([model.train_op, model.loss], fd)
             loss_track.append(l)
-
             if verbose:
                 if batch == 0 or batch % model.batch_print == 0:
+
                     #그래프 출력
                     summary = session.run(merged, feed_dict=fd)
                     writer.add_summary(summary, batch*(epoch+1))
 
                     print('batch {}'.format(batch))
-                    print('  minibatch loss: {}'.format(session.run(model.loss, fd)))
-                    for i, (e_in, d_ot, dt_pred) in enumerate(zip(
+                    loss = session.run(model.loss, fd)
+                    loss_all += loss
+                    print('  minibatch loss: {}'.format(loss))
+                    for i, (e_in, d_ot, dt_pred, dt_inf) in enumerate(zip(
                             fd[model.encoder_inputs].T,
                             fd[model.decoder_targets].T,
-                            session.run(model.decoder_prediction_train, fd).T
+                            session.run(model.decoder_prediction_train, fd).T,
+                            session.run(model.decoder_prediction_inference, fd).T
                     )):
                         print('  sample {}:'.format(i + 1))
 
@@ -414,20 +461,29 @@ def train_on_copy_task_(session, model,
                         print('    enc input           > {}'.format(rW.recover_word(e_in)))
                         print('    dec target          > {}'.format(rW.recover_word(d_ot)))
                         print('    dec train predicted > {}'.format(rW.recover_word(dt_pred)))
+                        print('    dec train predicted > {}'.format(rW.recover_word(dt_inf)))
+
+
 
                         if i >= 2:
                             break
                     print()
 
+
         #1에폭마다 저장한다.
         saver.save(session, save_dir+'.ckpt', global_step = epoch)
+
+
+        # 학습 속도 조절
+        #lr_decay = config.lr_decay ** max(((epoch + 1) * model.max_batches) + batch - config.epoch, 0.0)
+        #model.assign_lr(session, config.learning_rate * lr_decay)
     return loss_track
 
 
 
 tf.reset_default_graph()
-model = Seq2SeqModel(encoder_cell=LSTMCell(10),
-                         decoder_cell=LSTMCell(20),
+model = Seq2SeqModel(encoder_cell=GRUCell(10),
+                         decoder_cell=GRUCell(20),
                          attention=False,
                          bidirectional=True)
 
@@ -442,7 +498,7 @@ with tf.Session() as session:
     merged = tf.summary.merge_all()
     writer = tf.summary.FileWriter(graph_dir, session.graph)
 
-    saver = tf.train.Saver()
+    saver = tf.train.Saver(tf.trainable_variables())
     initial_step = 0
     ckpt = tf.train.get_checkpoint_state(save_dir)
 
@@ -470,8 +526,8 @@ with tf.Session() as session:
 
     except tf.errors.OutOfRangeError as e:
         print("X(")
-
 """
+
 
 tf.reset_default_graph()
 model = Seq2SeqModel(encoder_cell=LSTMCell(10),
@@ -484,6 +540,8 @@ with tf.Session() as session:
 
     merged = tf.summary.merge_all()
     writer = tf.summary.FileWriter(graph_dir, session.graph)
+    session.run(tf.global_variables_initializer())
+
 
     saver = tf.train.Saver()
     initial_step = 0
@@ -497,8 +555,7 @@ with tf.Session() as session:
         print("Checkpoint")
         print(initial_step)
 
-    session.run(tf.global_variables_initializer())
-    word = "무ㅗㄴ제에"
+    word = "그래고"
     index_word = rW.convert_num(word)
     fd = model.make_inference_inputs([len(word)], [[i] for i in index_word])
     inf_out = session.run(model.decoder_prediction_inference, fd).T[0]

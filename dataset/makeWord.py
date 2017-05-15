@@ -1,6 +1,6 @@
-import time
+#import time
 
-start = time.time()
+#start = time.time()
 
 # 이 프로그램은 분해된 자소를 한글 두벌 키보드 입력에 따라 합치는 프로그램이다.
 # 입력값 예시 ['ㄱ','ㅏ','ㅇ','ㄹ','ㄱ','ㅏ']
@@ -116,12 +116,13 @@ class make_word:
             if char in JAUM:
                 self.is_double_j()
 
-            #다음 입력이 모음인 경우 -> 종성 state
+            #다음 입력이 모음인 경우 -> 중성 state
             else:
                 self.jungsung()
 
     def jungsung(self):
         self.w_ptr += 1
+
         if(self.w_ptr >= len(self.word)):
             return
 
@@ -130,8 +131,9 @@ class make_word:
         # 다음 입력이 키보드겹자음인 경우
         if (char in K_double_j.keys()):
             self.w_ptr += 1
+            if(self.w_ptr >= len(self.word)):
+                return
             char = self.word[self.w_ptr]
-
             # 다음 입력이 자음인 경우 -> 초성 state
             # 이전값 문자 완성
             if char in JAUM:
@@ -270,7 +272,5 @@ def combine_word(word):
     m.__main__()
     return m.result
 
-"""
-print(combine_word(['ㅗ', 'ㅐ', 'ㅆ', 'ㄱ', 'ㅗ']))
-print(time.time()-start)
-"""
+#print(combine_word(['ㄱ', 'ㅡ']))
+#print(time.time()-start)

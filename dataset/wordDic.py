@@ -10,7 +10,7 @@ import re
 import csv
 import operator
 
-file_location = 'C:/Users/kimhyeji/Desktop/현대문어_원시_말뭉치'
+file_location = 'C:/Users/kimhyeji/Desktop/데이터'
 #directory 에 있는 file의 제목을 모두 가져온다.
 directory = os.listdir(file_location)
 
@@ -25,15 +25,32 @@ for f in directory:
     #python3부터는 ANSI 기준 작성 파일만 읽을 수 있다.
     #인코딩 문제를 위해 utf-16을 명시해준다.
     #윈도우즈에서의 text파일의 유니코드가 UTF-16이기 때문이다.
-    with open(f, "r", encoding = 'utf16') as file:
-        #한글 단어만 추출한다
-        hangul = re.compile('[가-힣]+')
-        result = hangul.findall(file.read())
-        for word in result:
-            if word in dic.keys():
-                dic[word] += 1
-            else:
-                dic[word] = 1
+    try:
+        print(f)
+        with open(f, "r", encoding = 'utf16') as file:
+            #한글 단어만 추출한다
+            hangul = re.compile('[가-힣]+')
+            result = hangul.findall(file.read())
+            for word in result:
+                if word in dic.keys():
+                    dic[word] += 1
+                else:
+                    dic[word] = 1
+    except:
+        try:
+            print(f)
+            with open(f, "r", encoding='utf8') as file:
+                # 한글 단어만 추출한다
+                hangul = re.compile('[가-힣]+')
+                result = hangul.findall(file.read())
+                for word in result:
+                    if word in dic.keys():
+                        dic[word] += 1
+                    else:
+                        dic[word] = 1
+        except:
+            print(f)
+            continue
 
 #빈도 수를 값에 따라서 내림차순으로 정렬하고, 리스트로 반환한다.
 dic = sorted(dic.items(), key = operator.itemgetter(1), reverse = True)
