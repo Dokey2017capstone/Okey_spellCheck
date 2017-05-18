@@ -10,7 +10,6 @@ convert_num(string)
 #start = time.time()
 
 import hangul as hg
-import makeNoisy as mN
 
 
 #0 : ㄱ
