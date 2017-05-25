@@ -17,7 +17,6 @@ make_train_data()
     save_file에 [오타단어길이, 정답단어길이, 오타글자인덱싱, 정답글자인덱싱] 형식으로 저장한다.
 """
 
-
 import makeWord as m
 import csv
 import os
@@ -25,7 +24,7 @@ import hangul as hg
 
 # 파일 위치
 word_list_dir = 'C:/Users/kimhyeji/Desktop/데이터'
-save_file = 'C:/Users/kimhyeji/PycharmProjects/tfTest/dic_modify.csv'
+save_file = 'C:/Users/kimhyeji/PycharmProjects/tfTest/dic_modify_.csv'
 
 
 #한글 음소 분할을 위한 변수 설정
@@ -45,7 +44,7 @@ same_word = 1
 def keyboard_order():
     #겹자모음을 이루는 자모음들
     K_double = [{'ㄳ': ['ㄱ', 'ㅅ']}, {'ㄵ': ['ㄴ', 'ㅈ']}, {'ㄶ': ['ㄴ', 'ㅎ']}, {'ㄺ': ['ㄹ', 'ㄱ']}, {'ㄻ': ['ㄹ', 'ㅁ']},
-                {'ㄼ': ['ㄹ', 'ㅂ']}, {'ㄽ': ['ㄹ', 'ㅅ']}, {'ㄿ': ['ㄹ', 'ㅍ']}, {'ㅀ':['ㄹ','ㅎ']},{'ㅄ': ['ㅂ', 'ㅅ']},
+                {'ㄼ': ['ㄹ', 'ㅂ']}, {'ㄽ': ['ㄹ', 'ㅅ']}, {'ㄿ': ['ㄹ', 'ㅍ']},{'ㄾ':['ㄹ','ㅌ']}, {'ㅀ':['ㄹ','ㅎ']},{'ㅄ': ['ㅂ', 'ㅅ']},
                 {'ㅘ': ['ㅗ', 'ㅏ']}, {'ㅙ': ['ㅗ', 'ㅐ']}, {'ㅚ': ['ㅗ', 'ㅣ']}, {'ㅝ': ['ㅜ', 'ㅓ']}, {'ㅞ': ['ㅜ', 'ㅔ']},
                 {'ㅟ': ['ㅜ', 'ㅣ']}, {'ㅢ': ['ㅡ', 'ㅣ']}]
 
@@ -251,32 +250,40 @@ def make_train_data():
         w = csv.writer(wf)
 
         len_all_data = 0
+        len_data = 0
         for row in r:
             word = []
 
-            if(r is None): pass
+            if(row is None): continue
             word = row[0]
-            if(len(word) > 7):
-                continue
+            if(int(row[1]) < 50): break
+            if(len(word) > 7): continue
+
             try:
                 errors , targets = make_noisy(word)
 
+                len_data += 1
                 len_all_data += len(targets)
-                word_list += [[index_dic[t] for t in target] for target in targets]
-                word_error_list += [[index_dic[e] for e in error] for error in errors]
+                word_list += [[int(index_dic[t]) for t in target] for target in targets]
+                word_error_list += [[int(index_dic[e]) for e in error] for error in errors]
             except:
+                print("error")
                 print(word)
-
+        """
         #단어의 최대 길이 구하기
         max = 0
         for i in range(len(word_list)):
-            if (max < len(word_error_list[i])): max = len(word_error_list[i])
+            if (max < len(word_error_list[i])): m
+            ax = len(word_error_list[i])
             if (max < len(word_list[i])): max = len(word_list[i])
-
+        """
+        max=7
         #데이터 생성, 저장
         #error 단어 길이, target 단어 길이, error 단어, target 단어
         for i in range(len(word_list)):
-
+            if(len(word_error_list[i]) > 7):
+                print("long")
+                continue
             lists = [len(word_error_list[i]), len(word_list[i])]
             lists += word_error_list[i]
             for _ in range(max - len(word_error_list[i])): lists.append(0)
@@ -286,9 +293,9 @@ def make_train_data():
 
         #총 오타 수
         print(len_all_data)
-        print(max)
+        print(len_data)
 
 
 #학습 시 , 반드시 주석처리해주어야함
 #반! 드! 시
-#make_train_data()
+make_train_data()

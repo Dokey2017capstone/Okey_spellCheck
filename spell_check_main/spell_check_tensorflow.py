@@ -1,27 +1,30 @@
-import recoverWord as rW
 import tensorflow as tf
 import tensorflow.contrib.seq2seq as seq2seq
 from tensorflow.contrib.rnn import LSTMStateTuple, GRUCell
+import recoverWord as rW
+import json
 
 
-file_name = './dic_modify.csv'
+file_name = './dic_modify_del.csv'
 graph_dir = './tmp/test_logs'
 save_dir = './tmp/checkpoint_dir'
+word_dir = './trie.json'
+
 class SmallConfig():
     """
     적은 학습 데이터에서의 하이퍼 파라미터
     """
-    learning_rate = 1.0
+    hidden_layers = 2
 
     #배치사이즈
-    batch_size = 50
+    batch_size = 500
     syllable_size = 11224
-    hidden_size = 200
-    len_max = 9
-    data_size = 1524670
+    hidden_size = 256
+    len_max = 7
+    data_size = 9402372
 
-    #신경망 계층
-    hidden_layers = 3
+    #임베딩 행렬 크기
+    embedding_num = 256
 
     #1에폭 당 배치의 개수
     max_batches = int(data_size/batch_size)
@@ -30,7 +33,7 @@ class SmallConfig():
     batch_print = 1000
 
     #에폭 수
-    epoch = 1000
+    epoch = 20
 
     # 기울기 값의 상한 설정
     # 기울기 clipping을 위함
@@ -50,8 +53,7 @@ class Seq2SeqModel():
     PAD = 0
     EOS = 0
 
-    def __init__(self, encoder_cell, decoder_cell,
-                 batch_size=config.batch_size,epoch=config.epoch,
+    def __init__(self, batch_size=config.batch_size,epoch=config.epoch,
                  bidirectional=True,
                  attention=False):
 
@@ -59,8 +61,8 @@ class Seq2SeqModel():
         self.attention = attention
 
 
-        self.encoder_cell = encoder_cell
-        self.decoder_cell = decoder_cell
+        self.encoder_cell = GRUCell(config.hidden_size)
+        self.decoder_cell = GRUCell(config.hidden_size*2)
 
         self.hidden_layers = config.hidden_layers
         self.max_batches = config.max_batches
@@ -68,7 +70,7 @@ class Seq2SeqModel():
         self.max_grad_norm = config.max_grad_norm
         self.lr_decay = config.lr_decay
         self.vocab_size = config.syllable_size
-        self.embedding_size = config.hidden_size
+        self.embedding_size = config.embedding_num
         self.batch_size = batch_size
         self.len_max = config.len_max
         self.data_size = config.data_size
@@ -352,17 +354,17 @@ class Seq2SeqModel():
 
         return len_error, len_target, error, target
 
-    def read_data_batch(self,file_name):
+    def read_data_batch(self,tensors):
         """
             배치로 나눠 반환한다.
         """
-        len_x, len_y, x, y = self.read_data(file_name)
+        len_x, len_y, x, y = tensors
 
         #session 단계에서 queue를 생성해줘야 한다.
         #무작위로 batch를 적용
         batch_len_x, batch_len_y, batch_x, batch_y = tf.train.shuffle_batch([len_x,len_y,x,y],
                                                                             batch_size = self.batch_size,
-                                                                            capacity=10000,min_after_dequeue=3000)
+                                                                            capacity=30000,min_after_dequeue=3000)
 
         batch_len_x = tf.reshape(batch_len_x,[-1])
         batch_len_y = tf.reshape(batch_len_y,[-1])
@@ -381,53 +383,41 @@ def train_on_copy_task_(session, model,
             학습을 실행하는 함수
     """
     loss_track = []
-    loss = 0
-    loss_all = 0
-    p_loss_all = 0
     for epoch in range(initial_step,model.epoch):
-        print(loss_track)
-        print(p_loss_all)
-        print(loss_all / 30)
-        p_loss_all = loss_all
+        accur_epoch = 0
         loss_all = 0
-        for batch in range(model.max_batches + 1):
+        for batch in range(model.max_batches):
+            all_accuracy = 0
+
             b_len_x, b_len_y, b_x, b_y = session.run([len_x, len_y, x, y])
 
             fd = model.make_train_inputs(b_len_x, b_len_y, b_x, b_y)
             _, l = session.run([model.train_op, model.loss], fd)
-            loss_track.append(l)
             if verbose:
                 if batch == 0 or batch % model.batch_print == 0:
-
                     #그래프 출력
-                    summary = session.run(merged, feed_dict=fd)
-                    writer.add_summary(summary, batch*(epoch+1))
+                    summary= session.run(merged, feed_dict=fd)
+                    writer.add_summary(summary, (model.max_batches*epoch)+batch)
 
                     print('batch {}'.format(batch))
-                    loss = session.run(model.loss, fd)
-                    loss_all += loss
-                    print('  minibatch loss: {}'.format(loss))
-                    for i, (e_in, d_ot, dt_pred, dt_inf) in enumerate(zip(
+                    print('loss {}' .format(l))
+                    count = 0
+                    for i, (e_in, d_ot, dt_inf) in enumerate(zip(
                             fd[model.encoder_inputs].T,
                             fd[model.decoder_targets].T,
-                            session.run(model.decoder_prediction_train, fd).T,
+                            #session.run(model.decoder_prediction_train, fd).T,
                             session.run(model.decoder_prediction_inference, fd).T
                     )):
-                        print('  sample {}:'.format(i + 1))
 
-                        print('    enc input           > {}'.format(e_in))
-                        print('    dec target          > {}'.format(d_ot))
-                        print('    dec train predicted > {}'.format(dt_pred))
-                        print('    enc input           > {}'.format(rW.recover_word(e_in)))
-                        print('    dec target          > {}'.format(rW.recover_word(d_ot)))
-                        print('    dec train predicted > {}'.format(rW.recover_word(dt_pred)))
-                        print('    dec train predicted > {}'.format(rW.recover_word(dt_inf)))
-
-
-
-                        if i >= 2:
-                            break
-                    print()
+                        correct = tf.equal(e_in[0:len(dt_inf)],dt_inf[0:len(e_in)])
+                        accuracy = tf.reduce_mean(tf.cast(correct, "float"))
+                        all_accuracy += session.run(accuracy, fd)
+                        count += 1
+                    all_accuracy /= count
+                    print("accuracy : ",all_accuracy)
+            accur_epoch += all_accuracy
+        accur_epoch /= model.max_batches
+        print('epoch{} : '.format(epoch),accur_epoch)
 
 
         #1에폭마다 저장한다.
@@ -438,17 +428,16 @@ def train_on_copy_task_(session, model,
         #lr_decay = config.lr_decay ** max(((epoch + 1) * model.max_batches) + batch - config.epoch, 0.0)
         #model.assign_lr(session, config.learning_rate * lr_decay)
     return loss_track
-
 """
 
+#학습용
+
 tf.reset_default_graph()
-model = Seq2SeqModel(encoder_cell=GRUCell(10),
-                         decoder_cell=GRUCell(20),
+model = Seq2SeqModel(
                          attention=False,
                          bidirectional=True)
-
-b_len_x, b_len_y, b_x, b_y = model.read_data_batch(file_name)
-
+tensors = model.read_data(file_name)
+b_len_x, b_len_y, b_x, b_y = model.read_data_batch(tensors)
 
 
 #tensorboard에 graph 출력을 위해
@@ -462,10 +451,9 @@ with tf.Session() as session:
     initial_step = 0
     ckpt = tf.train.get_checkpoint_state(save_dir)
 
+    session.run(tf.group(tf.global_variables_initializer(), tf.local_variables_initializer()))
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(sess=session, coord=coord)
-
-    session.run(tf.global_variables_initializer())
 
     #checkpoint가 존재할 경우 변수 값을 복구한다.
     if ckpt and ckpt.model_checkpoint_path:
@@ -477,23 +465,24 @@ with tf.Session() as session:
     else:
         print("No Checkpoint")
 
-    try:
-        train_on_copy_task_(session, model,
+    train_on_copy_task_(session, model,
                            b_len_x, b_len_y, b_x, b_y,
                            initial_step,
                            verbose=True)
 
 
-    except tf.errors.OutOfRangeError as e:
-        print("X(")
 """
 
 
 tf.reset_default_graph()
-model = Seq2SeqModel(encoder_cell=GRUCell(10),
-                         decoder_cell=GRUCell(20),
-                         attention=False,
+model = Seq2SeqModel(attention=False,
                          bidirectional=True)
+
+
+#trie 구조의 단어장
+#단어장 내에 단어가 있는 경우 검사를 하지 않는다.
+word_dir = 'C:/Users/kimhyeji/PycharmProjects/tfTest/trie.json'
+dict = json.load(open(word_dir))
 
 with tf.Session() as session:
 
@@ -513,9 +502,23 @@ with tf.Session() as session:
         initial_step = int(ckpt.model_checkpoint_path.rsplit('-', 1)[1])
         print("Checkpoint")
         print(initial_step)
+    while(1):
+        #오타 데이터 입력을 받는다.
+        word = input("입력 :")
+        temp = dict
+        result = 1
+        #단어가 존재하지 않는 경우 result = 0
+        for char in word:
+            if char in temp:
+                temp = temp[char]
+            else:
+                result = 0
+                break
 
-    word = "여자드리"
-    index_word = rW.convert_num(word)
-    fd = model.make_inference_inputs([len(word)], [[i] for i in index_word])
-    inf_out = session.run(model.decoder_prediction_inference, fd).T[0]
-    print(rW.recover_word(inf_out))
+        #단어장에 단어가 존재하지 않는 경우
+        if not result:
+            index_word = rW.convert_num(word)
+            fd = model.make_inference_inputs([len(word)], [[i] for i in index_word])
+            inf_out = session.run(model.decoder_prediction_inference, fd).T[0]
+            print(rW.recover_word(inf_out))
+
