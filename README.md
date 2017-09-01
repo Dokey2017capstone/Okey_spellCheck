@@ -20,3 +20,36 @@ word automatic recommendation function, automatic spacing function.
 안드로이드 용 스마트 키보드를 개발하는 것을 목표로 한다.
 
 https://youtu.be/g3tAj8hETl4
+
+
+
+- dic_modify.csv
+  훈련 데이터 생성 결과 파일
+
+- hangul.py
+  한글 음운/ 음절 저장
+
+    char_arr   한글 음운 리스트
+    char_dic   한글 음절 인덱싱 사전
+
+- makeNoisy.py
+  오타 생성기
+
+  기존 단어를 이용하여 키보드 오타를 자동 생성한다.
+  오타 삽입과 교체 기준은 키보드의 위치이다.
+  각 자판의 주변 위치를 list에 저장하고, random 하게 교체 혹은 삽입한다.
+
+    split_data(string)  단어를 음운으로 분해한다.
+    make_noisy(string)  단어에 대한 오타 데이터를 제작한다.
+    make_train_data()   단어리스트로 훈련데이터를 제작한다. 
+                        훈련 데이터 형식은 다음과 같다.
+                        [오타단어길이, 정답단어길이, 오타글자인덱싱, 정답글자인덱싱]
+
+- makeTrie.py
+  Trie 형태로 기존 단어들을 저장한다. 실 사용시 더 높은 정확성을 위해, 이 파일에서 제작한 json 파일에서 단어가 있는 지 검사한 후 없는 경우에만 오타 교정기를 실행한다.
+
+- makeWord.py
+  분해된 자소를 단어로 합친다. 한글 두벌 키보드 입력을 바탕으로 오토마타를 제작하였으며 오타 제작 시 필요하다.
+
+- recoverWord.py
+  인덱싱 형태 <-> 한글. 오타 교정기를 돌리기 전과 후에 실행시킨다.
