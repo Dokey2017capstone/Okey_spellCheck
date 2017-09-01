@@ -62,7 +62,8 @@ https://youtu.be/g3tAj8hETl4
 ## spell_check_tensorflow.py
   sequence to sequence 기반의 deep learning Korean spell check model
   
-  ### class SmallConfig
+  
+  ### class SmallConfig
       hyperparameter setting
     
   ### class Seq2SeqModel
