@@ -65,8 +65,8 @@ https://youtu.be/g3tAj8hETl4
     ### class SmallConfig
     hyperparameter setting
     
-    ### class Seq2SeqModel()
-      __init__(self, batch_size=config.batch_size,epoch=config.epoch,
+    ### class Seq2SeqModel
+      \__init__(self, batch_size=config.batch_size,epoch=config.epoch,
                    bidirectional=True,
                    attention=False)
       _init_placeholders(self)
