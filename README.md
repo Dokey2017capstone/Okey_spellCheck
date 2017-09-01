@@ -63,7 +63,7 @@ https://youtu.be/g3tAj8hETl4
   sequence to sequence 기반의 deep learning Korean spell check model
   
   ### class SmallConfig
-    hyperparameter setting
+      hyperparameter setting
     
   ### class Seq2SeqModel
       __init__(self, batch_size=config.batch_size,epoch=config.epoch,
