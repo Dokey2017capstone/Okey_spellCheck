@@ -50,6 +50,38 @@ https://youtu.be/g3tAj8hETl4
 
 ## makeWord.py
   분해된 자소를 단어로 합친다. 한글 두벌 키보드 입력을 바탕으로 오토마타를 제작하였으며 오타 제작 시 필요하다.
+  
+    combine_word(word) 단어를 통합한다
 
 ## recoverWord.py
-  인덱싱 형태 <-> 한글. 오타 교정기를 돌리기 전과 후에 실행시킨다.
+  Indexing 형태 <-> 한글. 오타 교정기를 돌리기 전과 후에 실행시킨다.
+  
+    recover_word(list) tensorflow 작업 결과물을 단어로 변환
+    convert_num(string) 단어를 tensorflow input data로 변환
+
+## spell_check_tensorflow.py
+  sequence to sequence 기반의 deep learning Korean spell check model
+  
+    ###class SmallConfig
+    hyperparameter setting
+    
+    ###class Seq2SeqModel()
+      __init__(self, batch_size=config.batch_size,epoch=config.epoch,
+                   bidirectional=True,
+                   attention=False)
+      _init_placeholders(self)
+      _init_decoder_train_connectors(self)
+      _init_embeddings(self)
+      _init_simple_encoder(self)
+      _init_bidirectional_encoder(self)
+      _init_decoder(self)
+      _init_optimizer(self)
+      make_train_inputs(self, inputs_length_, targets_length_, inputs_, targets_ )
+      make_inference_inputs(self, inputs_length_, inputs_)
+      read_data(self, file_name)
+      read_data_batch(self,tensors)
+      
+   train_on_copy_task_(session, model,
+                        len_x,len_y,x,y,
+                        initial_step = 0,
+                       verbose=True)
