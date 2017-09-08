@@ -14,11 +14,17 @@ class SmallConfig():
     """
     적은 학습 데이터에서의 하이퍼 파라미터
     """
+    
+    #계층의 수
     hidden_layers = 2
 
     #배치사이즈
     batch_size = 500
+    
+    # 한글 음운의 수
     syllable_size = 11224
+    
+    # hidden units per layer
     hidden_size = 256
     len_max = 7
     data_size = 9402372
@@ -56,11 +62,19 @@ class Seq2SeqModel():
     def __init__(self, batch_size=config.batch_size,epoch=config.epoch,
                  bidirectional=True,
                  attention=False):
-
+        
+        # 모델의 구조 설정
+        
+        # 이전 출력과 현재 출력으로 학습이 이루어지는 기존 RNN에서
+        # 이후의 출력 역시 현재에 영향을 줄 수 있다는 아이디어에 기반한 양방향 학습 모델
         self.bidirectional = bidirectional
+        
+        # 모든 decoding step에서 input 값을 가져올 수 있도록 하는 기법
+        # 아직 함수가 만들어지지 않았다. 업그레이드 예정
         self.attention = attention
 
-
+        #LSTM보다 간단하다고 알려진 GRU 메모리 셀 사용
+        # bidirectional을 사용하기 때문에 decoder cell의 hidden size가 encoder cell의 2배이다.
         self.encoder_cell = GRUCell(config.hidden_size)
         self.decoder_cell = GRUCell(config.hidden_size*2)
 
