@@ -96,9 +96,12 @@ class Seq2SeqModel():
         return self.decoder_cell.output_size
 
     def _make_graph(self):
+        # 훈련시킬 변수들을 저장할 공간을 초기화한다                                              
         self._init_placeholders()
-
+       
         self._init_decoder_train_connectors()
+        
+        # 단어 임베딩 초기화
         self._init_embeddings()
 
         if self.bidirectional:
@@ -111,7 +114,7 @@ class Seq2SeqModel():
         self._init_optimizer()
 
     def _init_placeholders(self):
-        """ Everything is time-major """
+        """ input, output 저장 공간을 초기화한다 """
 
         self.encoder_inputs_length = tf.placeholder(
             shape=(None,),
@@ -134,12 +137,11 @@ class Seq2SeqModel():
             name='decoder_targets'
         )
 
-
     def _init_decoder_train_connectors(self):
         """
-        During training, `decoder_targets`
-        and decoder logits. This means that their shapes should be compatible.
-        Here we do a bit of plumbing to set this up.
+        훈련시킬때 사용될 decoder를 초기화한다
+        encoder의 output이 decoder의 첫 input으로 사용된다
+        그 후 decoder의 output이 next step의 input으로 
         """
         with tf.name_scope('DecoderTrainFeeds'):
             sequence_size, batch_size = tf.unstack(tf.shape(self.decoder_targets))
@@ -194,6 +196,9 @@ class Seq2SeqModel():
                 self.embedding_matrix, self.decoder_train_inputs)
 
     def _init_simple_encoder(self):
+        """
+        bidirectional이 아닌경우
+        """
         with tf.variable_scope("Encoder") as scope:
             (self.encoder_outputs, self.encoder_state) = (
                 tf.nn.dynamic_rnn(cell=self.encoder_cell,
@@ -293,7 +298,9 @@ class Seq2SeqModel():
             self.decoder_prediction_inference = tf.argmax(self.decoder_logits_inference, axis=-1, name='decoder_prediction_inference')
 
     def _init_optimizer(self):
-
+        """
+        adam optimizer를 사용해 loss를 최소화시킨다
+        """
         logits = tf.transpose(self.decoder_logits_train, [1, 0, 2])
         targets = tf.transpose(self.decoder_train_targets, [1, 0])
 
