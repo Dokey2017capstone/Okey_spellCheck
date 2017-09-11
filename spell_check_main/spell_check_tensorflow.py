@@ -96,7 +96,7 @@ class Seq2SeqModel():
         return self.decoder_cell.output_size
 
     def _make_graph(self):
-        # 훈련시킬 변수들을 저장할 공간을 초기화한다                                              
+                                                      
         self._init_placeholders()
        
         self._init_decoder_train_connectors()
@@ -110,11 +110,10 @@ class Seq2SeqModel():
             self._init_simple_encoder()
 
         self._init_decoder()
-
         self._init_optimizer()
 
     def _init_placeholders(self):
-        """ input, output 저장 공간을 초기화한다 """
+        """ 입력데이터를 저장할 공간을 초기화한다 """
 
         self.encoder_inputs_length = tf.placeholder(
             shape=(None,),
@@ -140,6 +139,7 @@ class Seq2SeqModel():
     def _init_decoder_train_connectors(self):
         """
         훈련시킬때 사용될 decoder를 초기화한다
+        
         encoder의 output이 decoder의 첫 input으로 사용된다
         그 후 decoder의 output이 next step의 input으로 
         """
@@ -175,12 +175,12 @@ class Seq2SeqModel():
     def _init_embeddings(self):
         """
         음운의 embedding
-        초기화 설정방법을 생각해봐야함
         """
         with tf.variable_scope("embedding") as scope:
 
             initializer = tf.contrib.layers.xavier_initializer()
-
+            
+            # xavier 초기화 방식을 이용해 임베딩 행렬을 초기화 한다.
             self.embedding_matrix = tf.get_variable(
                 name="embedding_matrix",
                 initializer = initializer,
@@ -188,7 +188,7 @@ class Seq2SeqModel():
                 dtype=tf.float32)
 
 
-
+            # encoder_inputs에 해당하는 embedding matrix 값을 가져온다
             self.encoder_inputs_embedded = tf.nn.embedding_lookup(
                 self.embedding_matrix, self.encoder_inputs)
 
@@ -210,6 +210,7 @@ class Seq2SeqModel():
 
     def _init_bidirectional_encoder(self):
         """
+        input 방향으로 학습시키고
         input을 뒤집어서 한번 더 학습시킨다.
         """
 
@@ -255,7 +256,7 @@ class Seq2SeqModel():
         with tf.variable_scope("Decoder") as scope:
             def output_fn(outputs):
                 return tf.contrib.layers.linear(outputs, self.vocab_size, scope=scope)
-
+            
             decoder_fn_train = seq2seq.simple_decoder_fn_train(encoder_state=self.encoder_state)
             decoder_fn_inference = seq2seq.simple_decoder_fn_inference(
                 output_fn=output_fn,
@@ -284,7 +285,7 @@ class Seq2SeqModel():
             self.decoder_prediction_train = tf.argmax(self.decoder_logits_train, axis=-1, name='decoder_prediction_train')
 
             scope.reuse_variables()
-
+            
             (self.decoder_logits_inference,
              self.decoder_state_inference,
              self.decoder_context_state_inference) = (
