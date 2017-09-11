@@ -76,6 +76,7 @@ https://youtu.be/g3tAj8hETl4
       encoder : 소스언어 정보를 압축한다
       _init_simple_encoder(self)  순방향 훈련 encoder(bidirectional이 아닌 경우)
       _init_bidirectional_encoder(self) 단어의 역방향으로도 훈련하기 위한 bidirectional encoder
+      
       decoder : encoder의 압축 정보를 받아 결과로 변환한다
       _init_decoder(self)
       _init_decoder_train_connectors(self)
