@@ -70,21 +70,20 @@ https://youtu.be/g3tAj8hETl4
       __init__(self, batch_size=config.batch_size,epoch=config.epoch,
                    bidirectional=True,
                    attention=False)
-      _init_placeholders(self)  입력 데이터를 저장할 공간을 초기화 한다.
-      _init_embeddings(self)  embedding matrix를생성해서 훈련할 값을 벡터 임베딩한다
-      
-      encoder : 소스언어 정보를 압축한다
-      _init_simple_encoder(self)  순방향 훈련 encoder(bidirectional이 아닌 경우)
+      _init_placeholders(self)  입력 데이터를 저장할 공간을 초기화 한다.
+      _init_embeddings(self)  embedding matrix를생성해서 훈련할 값을 벡터 임베딩한다
+      
+      encoder : 소스언어 정보를 압축한다
+      _init_simple_encoder(self)  순방향 훈련 encoder(bidirectional이 아닌 경우)
       _init_bidirectional_encoder(self) 단어의 역방향으로도 훈련하기 위한 bidirectional encoder
+      decoder : encoder의 압축 정보를 받아 결과로 변환한다
+      _init_decoder(self)
+      _init_decoder_train_connectors(self)
       
-      decoder : encoder의 압축 정보를 받아 결과로 변환한다
-      _init_decoder(self)
-      _init_decoder_train_connectors(self) 
-       
-      _init_optimizer(self)  adam optimizer를사용해 손실을 최소화한다
+      _init_optimizer(self)  adam optimizer를사용해 손실을 최소화한다
       
-      feed_dict에 입력할 형태
-      make_train_inputs(self, inputs_length_, targets_length_, inputs_, targets_ )
+      feed_dict에 입력할 형태
+      make_train_inputs(self, inputs_length_, targets_length_, inputs_, targets_ )
       make_inference_inputs(self, inputs_length_, inputs_)
       
       read_data(self, file_name)
