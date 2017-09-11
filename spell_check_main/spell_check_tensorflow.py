@@ -14,11 +14,17 @@ class SmallConfig():
     """
     적은 학습 데이터에서의 하이퍼 파라미터
     """
+    
+    #계층의 수
     hidden_layers = 2
 
     #배치사이즈
     batch_size = 500
+    
+    # 한글 음운의 수
     syllable_size = 11224
+    
+    # hidden units per layer
     hidden_size = 256
     len_max = 7
     data_size = 9402372
@@ -56,11 +62,19 @@ class Seq2SeqModel():
     def __init__(self, batch_size=config.batch_size,epoch=config.epoch,
                  bidirectional=True,
                  attention=False):
-
+        
+        # 모델의 구조 설정
+        
+        # 이전 출력과 현재 출력으로 학습이 이루어지는 기존 RNN에서
+        # 이후의 출력 역시 현재에 영향을 줄 수 있다는 아이디어에 기반한 양방향 학습 모델
         self.bidirectional = bidirectional
+        
+        # 모든 decoding step에서 input 값을 가져올 수 있도록 하는 기법
+        # 아직 함수가 만들어지지 않았다. 업그레이드 예정
         self.attention = attention
 
-
+        #LSTM보다 간단하다고 알려진 GRU 메모리 셀 사용
+        # bidirectional을 사용하기 때문에 decoder cell의 hidden size가 encoder cell의 2배이다.
         self.encoder_cell = GRUCell(config.hidden_size)
         self.decoder_cell = GRUCell(config.hidden_size*2)
 
@@ -82,9 +96,12 @@ class Seq2SeqModel():
         return self.decoder_cell.output_size
 
     def _make_graph(self):
+                                                      
         self._init_placeholders()
-
+       
         self._init_decoder_train_connectors()
+        
+        # 단어 임베딩 초기화
         self._init_embeddings()
 
         if self.bidirectional:
@@ -93,11 +110,10 @@ class Seq2SeqModel():
             self._init_simple_encoder()
 
         self._init_decoder()
-
         self._init_optimizer()
 
     def _init_placeholders(self):
-        """ Everything is time-major """
+        """ 입력데이터를 저장할 공간을 초기화한다 """
 
         self.encoder_inputs_length = tf.placeholder(
             shape=(None,),
@@ -120,12 +136,12 @@ class Seq2SeqModel():
             name='decoder_targets'
         )
 
-
     def _init_decoder_train_connectors(self):
         """
-        During training, `decoder_targets`
-        and decoder logits. This means that their shapes should be compatible.
-        Here we do a bit of plumbing to set this up.
+        훈련시킬때 사용될 decoder를 초기화한다
+        
+        encoder의 output이 decoder의 첫 input으로 사용된다
+        그 후 decoder의 output이 next step의 input으로 
         """
         with tf.name_scope('DecoderTrainFeeds'):
             sequence_size, batch_size = tf.unstack(tf.shape(self.decoder_targets))
@@ -159,12 +175,12 @@ class Seq2SeqModel():
     def _init_embeddings(self):
         """
         음운의 embedding
-        초기화 설정방법을 생각해봐야함
         """
         with tf.variable_scope("embedding") as scope:
 
             initializer = tf.contrib.layers.xavier_initializer()
-
+            
+            # xavier 초기화 방식을 이용해 임베딩 행렬을 초기화 한다.
             self.embedding_matrix = tf.get_variable(
                 name="embedding_matrix",
                 initializer = initializer,
@@ -172,7 +188,7 @@ class Seq2SeqModel():
                 dtype=tf.float32)
 
 
-
+            # encoder_inputs에 해당하는 embedding matrix 값을 가져온다
             self.encoder_inputs_embedded = tf.nn.embedding_lookup(
                 self.embedding_matrix, self.encoder_inputs)
 
@@ -180,6 +196,9 @@ class Seq2SeqModel():
                 self.embedding_matrix, self.decoder_train_inputs)
 
     def _init_simple_encoder(self):
+        """
+        bidirectional이 아닌경우
+        """
         with tf.variable_scope("Encoder") as scope:
             (self.encoder_outputs, self.encoder_state) = (
                 tf.nn.dynamic_rnn(cell=self.encoder_cell,
@@ -191,6 +210,7 @@ class Seq2SeqModel():
 
     def _init_bidirectional_encoder(self):
         """
+        input 방향으로 학습시키고
         input을 뒤집어서 한번 더 학습시킨다.
         """
 
@@ -236,7 +256,7 @@ class Seq2SeqModel():
         with tf.variable_scope("Decoder") as scope:
             def output_fn(outputs):
                 return tf.contrib.layers.linear(outputs, self.vocab_size, scope=scope)
-
+            
             decoder_fn_train = seq2seq.simple_decoder_fn_train(encoder_state=self.encoder_state)
             decoder_fn_inference = seq2seq.simple_decoder_fn_inference(
                 output_fn=output_fn,
@@ -265,7 +285,7 @@ class Seq2SeqModel():
             self.decoder_prediction_train = tf.argmax(self.decoder_logits_train, axis=-1, name='decoder_prediction_train')
 
             scope.reuse_variables()
-
+            
             (self.decoder_logits_inference,
              self.decoder_state_inference,
              self.decoder_context_state_inference) = (
@@ -279,7 +299,9 @@ class Seq2SeqModel():
             self.decoder_prediction_inference = tf.argmax(self.decoder_logits_inference, axis=-1, name='decoder_prediction_inference')
 
     def _init_optimizer(self):
-
+        """
+        adam optimizer를 사용해 loss를 최소화시킨다
+        """
         logits = tf.transpose(self.decoder_logits_train, [1, 0, 2])
         targets = tf.transpose(self.decoder_train_targets, [1, 0])
 
